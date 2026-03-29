@@ -1,4 +1,5 @@
 import { query, mutation } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
@@ -159,9 +160,36 @@ export const updateBookingStatus = mutation({
     if (!user || user.role !== "admin")
       throw new Error("Admin only");
 
+    const booking = await ctx.db.get(args.bookingId);
+    if (!booking) throw new Error("Booking not found");
+
     const updates: any = { status: args.status };
     if (args.adminNotes !== undefined) updates.adminNotes = args.adminNotes;
     await ctx.db.patch(args.bookingId, updates);
+
+    // Send emails when status is confirmed
+    if (args.status === "confirmed") {
+      const clientProfiles = await ctx.db
+        .query("clientProfiles")
+        .withIndex("by_userId", (q: any) => q.eq("userId", booking.clientId))
+        .take(1);
+      const cp = clientProfiles[0];
+      const clientUser = await ctx.db.get(booking.clientId);
+
+      if (clientUser?.email && cp) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.email.sendBookingConfirmationEmail,
+          {
+            clientEmail: clientUser.email,
+            clientName: cp.contactPerson,
+            eventType: booking.eventType,
+            eventDate: booking.eventDate,
+            talentCount: booking.talentProfileIds.length,
+          }
+        );
+      }
+    }
     return null;
   },
 });

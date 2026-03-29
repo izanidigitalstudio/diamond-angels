@@ -1,4 +1,5 @@
 import { query, mutation, internalMutation } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
@@ -187,12 +188,41 @@ export const expressInterest = mutation({
       .take(1);
     if (existing.length > 0) throw new Error("Already expressed interest");
 
+    const gig = await ctx.db.get(args.gigId);
+    if (!gig) throw new Error("Gig not found");
+
     await ctx.db.insert("gigInterests", {
       gigId: args.gigId,
       talentProfileId: profiles[0]._id,
       note: args.note,
       status: "interested",
     });
+
+    // Send interest notification to client
+    const gigCreator = await ctx.db.get(gig.createdBy);
+    const talentName = profiles[0].firstName && profiles[0].lastName
+      ? `${profiles[0].firstName} ${profiles[0].lastName}`
+      : "A Talent";
+    
+    if (gigCreator?.email) {
+      const clientProfiles = await ctx.db
+        .query("clientProfiles")
+        .withIndex("by_userId", (q: any) => q.eq("userId", gig.createdBy))
+        .take(1);
+      const cp = clientProfiles[0];
+      const clientName = cp?.contactPerson || gigCreator.name || "Client";
+
+      await ctx.scheduler.runAfter(
+        0,
+        internal.email.sendInterestExpressedEmail,
+        {
+          clientEmail: gigCreator.email,
+          clientName,
+          talentName,
+          eventType: gig.eventType,
+        }
+      );
+    }
     return null;
   },
 });

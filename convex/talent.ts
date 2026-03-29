@@ -1,4 +1,5 @@
 import { query, mutation, internalMutation } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
@@ -324,7 +325,26 @@ export const approveProfile = mutation({
     if (!user || user.role !== "admin")
       throw new Error("Admin only");
 
+    const profile = await ctx.db.get(args.profileId);
+    if (!profile) throw new Error("Profile not found");
+
     await ctx.db.patch(args.profileId, { status: "approved" });
+
+    // Send approval email
+    const talentUser = await ctx.db.get(profile.userId);
+    if (talentUser?.email) {
+      const talentName = profile.firstName && profile.lastName
+        ? `${profile.firstName} ${profile.lastName}`
+        : "Talent";
+      await ctx.scheduler.runAfter(
+        0,
+        internal.email.sendProfileApprovedEmail,
+        {
+          email: talentUser.email,
+          talentName,
+        }
+      );
+    }
     return null;
   },
 });
@@ -343,10 +363,30 @@ export const declineProfile = mutation({
     if (!user || user.role !== "admin")
       throw new Error("Admin only");
 
+    const profile = await ctx.db.get(args.profileId);
+    if (!profile) throw new Error("Profile not found");
+
     await ctx.db.patch(args.profileId, {
       status: "declined",
       declineReason: args.reason,
     });
+
+    // Send decline email
+    const talentUser = await ctx.db.get(profile.userId);
+    if (talentUser?.email) {
+      const talentName = profile.firstName && profile.lastName
+        ? `${profile.firstName} ${profile.lastName}`
+        : "Talent";
+      await ctx.scheduler.runAfter(
+        0,
+        internal.email.sendProfileDeclinedEmail,
+        {
+          email: talentUser.email,
+          talentName,
+          reason: args.reason,
+        }
+      );
+    }
     return null;
   },
 });

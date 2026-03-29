@@ -57,6 +57,20 @@ export const setRole = mutation({
 
     await ctx.db.patch(user._id, { role: args.role });
 
+    // Send welcome email based on role
+    if (user.email) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.email.sendWelcomeEmail,
+        {
+          userId: user._id,
+          email: user.email,
+          name: user.name || "User",
+          role: args.role,
+        }
+      );
+    }
+
     // Seed demo gigs when a client registers
     if (args.role === "client") {
       await ctx.scheduler.runAfter(0, internal.gigs.seedDemoGigs, { userId: user._id });
