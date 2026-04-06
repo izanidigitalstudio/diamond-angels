@@ -10,56 +10,64 @@ import { api } from '../convex/_generated/api';
 import { theme } from '../lib/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import RoleSelectScreen from './RoleSelectScreen';
-import AdminDashboardScreen from './admin/AdminDashboardScreen';
-import TalentManagementScreen from './admin/TalentManagementScreen';
-import BookingRequestsScreen from './admin/BookingRequestsScreen';
-import GigManagementScreen from './admin/GigManagementScreen';
-import SearchTalentScreen from './client/SearchTalentScreen';
-import MySelectionsScreen from './client/MySelectionsScreen';
-import GigBoardScreen from './client/GigBoardScreen';
-import ClientProfileScreen from './client/ClientProfileScreen';
-import OutfitsScreen from './client/OutfitsScreen';
-import TalentProfileScreen from './talent/TalentProfileScreen';
-import TalentGigsScreen from './talent/TalentGigsScreen';
-import TalentActivityScreen from './talent/TalentActivityScreen';
-import TalentSettingsScreen from './talent/TalentSettingsScreen';
-import NoticeBoardScreen from './talent/NoticeBoardScreen';
-import NoticesManagementScreen from './admin/NoticesManagementScreen';
-
 const AdminTab = createBottomTabNavigator();
 const ClientTab = createBottomTabNavigator();
 const TalentTab = createBottomTabNavigator();
+
+function createLazyScreen(loader: () => React.ComponentType<any>, label: string) {
+  return function LazyScreen(props: any) {
+    try {
+      const Screen = loader();
+      return <Screen {...props} />;
+    } catch (error) {
+      console.error(`Failed to load ${label}`, error);
+      return (
+        <View style={s.loading}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={s.errorTitle}>Unable to load {label}</Text>
+          <Text style={s.errorBody}>
+            {error instanceof Error ? error.message : String(error)}
+          </Text>
+        </View>
+      );
+    }
+  };
+}
+
+const RoleSelectScreen = createLazyScreen(() => require('./RoleSelectScreen').default, 'role selection');
+const AdminDashboardScreen = createLazyScreen(() => require('./admin/AdminDashboardScreen').default, 'admin dashboard');
+const TalentManagementScreen = createLazyScreen(() => require('./admin/TalentManagementScreen').default, 'talent management');
+const BookingRequestsScreen = createLazyScreen(() => require('./admin/BookingRequestsScreen').default, 'booking requests');
+const GigManagementScreen = createLazyScreen(() => require('./admin/GigManagementScreen').default, 'gig management');
+const NoticesManagementScreen = createLazyScreen(() => require('./admin/NoticesManagementScreen').default, 'notices management');
+const SearchTalentScreen = createLazyScreen(() => require('./client/SearchTalentScreen').default, 'talent search');
+const MySelectionsScreen = createLazyScreen(() => require('./client/MySelectionsScreen').default, 'client selections');
+const GigBoardScreen = createLazyScreen(() => require('./client/GigBoardScreen').default, 'gig board');
+const ClientProfileScreen = createLazyScreen(() => require('./client/ClientProfileScreen').default, 'client profile');
+const OutfitsScreen = createLazyScreen(() => require('./client/OutfitsScreen').default, 'outfits');
+const TalentProfileScreen = createLazyScreen(() => require('./talent/TalentProfileScreen').default, 'talent profile');
+const TalentGigsScreen = createLazyScreen(() => require('./talent/TalentGigsScreen').default, 'talent gigs');
+const TalentActivityScreen = createLazyScreen(() => require('./talent/TalentActivityScreen').default, 'talent activity');
+const TalentSettingsScreen = createLazyScreen(() => require('./talent/TalentSettingsScreen').default, 'talent settings');
+const NoticeBoardScreen = createLazyScreen(() => require('./talent/NoticeBoardScreen').default, 'notice board');
 
 function getTabOptions(isDesktop: boolean) {
   return {
     headerShown: false,
     sceneStyle: { backgroundColor: theme.colors.background },
-    tabBarPosition: isDesktop ? 'left' as const : 'bottom' as const,
-    tabBarVariant: isDesktop ? 'material' as const : 'uikit' as const,
+    tabBarPosition: 'bottom' as const,
+    tabBarVariant: 'uikit' as const,
     tabBarLabelPosition: isDesktop ? 'beside-icon' as const : 'below-icon' as const,
     tabBarActiveTintColor: theme.colors.primary,
     tabBarInactiveTintColor: theme.colors.textMuted,
-    tabBarStyle: isDesktop ? {
-      backgroundColor: theme.colors.card,
-      borderRightColor: theme.colors.border,
-      borderRightWidth: 1,
-      borderTopWidth: 0,
-      width: 238,
-      paddingTop: 18,
-      paddingBottom: 18,
-    } : {
+    tabBarStyle: {
       backgroundColor: theme.colors.card,
       borderTopColor: theme.colors.border,
       height: 68,
       paddingBottom: 8,
       paddingTop: 8,
     },
-    tabBarItemStyle: isDesktop ? {
-      borderRadius: 14,
-      marginHorizontal: 12,
-      marginVertical: 4,
-    } : undefined,
+    tabBarItemStyle: undefined,
   };
 }
 
@@ -561,6 +569,20 @@ export default function AuthenticatedApp() {
 
 const s = StyleSheet.create({
   loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.background },
+  errorTitle: {
+    marginTop: 14,
+    color: theme.colors.text,
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  errorBody: {
+    marginTop: 8,
+    paddingHorizontal: 24,
+    color: theme.colors.textSecondary,
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
+  },
 });
 
 const sw = StyleSheet.create({

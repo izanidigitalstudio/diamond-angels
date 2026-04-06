@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, FlatList, Image,
-  ActivityIndicator, Modal, TextInput, ScrollView, Alert, Dimensions,
+  ActivityIndicator, Modal, TextInput, ScrollView, Alert, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation } from 'convex/react';
@@ -11,12 +11,7 @@ import { theme } from '../../lib/theme';
 import { SA_CITIES, RACE_OPTIONS, BODY_TYPES, CATEGORIES, EVENT_TYPES, HEIGHT_MIN, HEIGHT_MAX } from '../../lib/constants';
 import { DEMO_TALENT } from '../../lib/demoTalent';
 
-const { width } = Dimensions.get('window');
-const COLS = width > 400 ? 3 : 2;
 const CARD_GAP = 10;
-const CARD_W = (width - 48 - (COLS - 1) * CARD_GAP) / COLS;
-
-const SLIDE_W = width - 40;
 
 const C = {
   bg: theme.colors.background,
@@ -54,12 +49,12 @@ function generatePhotosForProfile(p: any): string[] {
   ];
 }
 
-function PhotoSlider({ photos }: { photos: string[] }) {
+function PhotoSlider({ photos, slideWidth }: { photos: string[]; slideWidth: number }) {
   const [idx, setIdx] = useState(0);
   const valid = photos.filter(Boolean);
   if (valid.length === 0) {
     return (
-      <View style={{ width: SLIDE_W, height: SLIDE_W * 1.2, borderRadius: 14, backgroundColor: C.cardLight, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ width: slideWidth, height: slideWidth * 1.2, borderRadius: 14, backgroundColor: C.cardLight, alignItems: 'center', justifyContent: 'center' }}>
         <Ionicons name="person" size={48} color={C.muted} />
       </View>
     );
@@ -68,11 +63,11 @@ function PhotoSlider({ photos }: { photos: string[] }) {
     <View>
       <ScrollView
         horizontal pagingEnabled showsHorizontalScrollIndicator={false}
-        onScroll={(e: any) => setIdx(Math.round(e.nativeEvent.contentOffset.x / SLIDE_W))}
+        onScroll={(e: any) => setIdx(Math.round(e.nativeEvent.contentOffset.x / slideWidth))}
         scrollEventThrottle={16}
       >
         {valid.map((url: string, i: number) => (
-          <View key={i} style={styles.sliderFrame}>
+          <View key={i} style={[styles.sliderFrame, { width: slideWidth, height: slideWidth * 1.2 }]}>
             <Image source={{ uri: url }} style={styles.sliderImg} />
           </View>
         ))}
@@ -90,6 +85,7 @@ function PhotoSlider({ photos }: { photos: string[] }) {
 }
 
 export default function SearchTalentScreen() {
+  const { width } = useWindowDimensions();
   const [filterCity, setFilterCity] = useState('');
   const [filterRace, setFilterRace] = useState('');
   const [filterBodyType, setFilterBodyType] = useState('');
@@ -103,6 +99,11 @@ export default function SearchTalentScreen() {
   const [bookingForm, setBookingForm] = useState({
     eventType: '', eventDate: '', city: '', venue: '', requirements: '',
   });
+  const cols = width >= 1200 ? 4 : width >= 720 ? 3 : 2;
+  const contentWidth = Math.min(width - 32, 1120);
+  const cardWidth = Math.floor((contentWidth - CARD_GAP * (cols - 1)) / cols);
+  const gridWidth = cardWidth * cols + CARD_GAP * (cols - 1);
+  const slideWidth = Math.min(width - 40, 520);
 
   const dbProfiles = useQuery(api.talent.listApprovedProfiles, filterCity ? { city: filterCity } : {});
   const createBooking = useMutation(api.bookings.createBookingRequest);
@@ -246,22 +247,33 @@ export default function SearchTalentScreen() {
 
         {/* Talent Grid */}
         <FlatList
+          key={`talent-grid-${cols}`}
           data={filteredProfiles}
           keyExtractor={(item: any) => item.id || item._id}
-          numColumns={COLS}
-          contentContainerStyle={{ padding: 16, paddingBottom: selectedIds.size > 0 ? 80 : 16 }}
-          columnWrapperStyle={{ gap: CARD_GAP }}
-          renderItem={({ item }: any) => {
+          numColumns={cols}
+          style={{ alignSelf: 'center', width: gridWidth }}
+          contentContainerStyle={{ paddingBottom: selectedIds.size > 0 ? 80 : 16 }}
+          columnWrapperStyle={cols > 1 ? { marginBottom: CARD_GAP } : undefined}
+          renderItem={({ item, index }: any) => {
             const isSel = selectedIds.has(item.id || item._id);
             const photoUrl = item.photos?.[0] || item.photoUrls?.[0];
+            const isLastInRow = (index + 1) % cols === 0;
             return (
               <TouchableOpacity
-                style={[styles.gridCard, { width: CARD_W, marginBottom: CARD_GAP }, isSel && styles.gridCardSelected]}
+                style={[
+                  styles.gridCard,
+                  {
+                    width: cardWidth,
+                    marginRight: cols > 1 && !isLastInRow ? CARD_GAP : 0,
+                    marginBottom: cols === 1 ? CARD_GAP : 0,
+                  },
+                  isSel && styles.gridCardSelected,
+                ]}
                 onPress={() => setShowDetail(item)}
                 onLongPress={() => toggleSelect(item.id || item._id)}
                 activeOpacity={0.8}
               >
-                <View style={[styles.gridImgFrame, { width: CARD_W - (isSel ? 4 : 0), height: CARD_W * 1.3 }]}>
+                <View style={[styles.gridImgFrame, { width: cardWidth - (isSel ? 4 : 0), height: cardWidth * 1.3 }]}>
                   <Image source={{ uri: photoUrl }} style={styles.gridImg} />
                 </View>
                 <TouchableOpacity
@@ -462,7 +474,7 @@ export default function SearchTalentScreen() {
             <View style={styles.modalOverlay}>
               <View style={styles.modalContent}>
                 <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-                  <PhotoSlider photos={showDetail.photos || showDetail.photoUrls || []} />
+                  <PhotoSlider photos={showDetail.photos || showDetail.photoUrls || []} slideWidth={slideWidth} />
                   <Text style={[styles.title, { marginTop: 16 }]}>{showDetail.firstName}</Text>
                   <Text style={{ color: C.sub, fontSize: 12, marginTop: 2 }}>
                     {showDetail.city}, {showDetail.area} · {showDetail.race} · {showDetail.bodyType} · {showDetail.heightCm}cm
@@ -650,8 +662,6 @@ const styles = StyleSheet.create({
 
   // Detail modal
   sliderFrame: {
-    width: SLIDE_W,
-    height: SLIDE_W * 1.2,
     borderRadius: 14,
     backgroundColor: C.cardLight,
     alignItems: 'center',
