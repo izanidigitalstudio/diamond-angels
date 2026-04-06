@@ -36,8 +36,8 @@ const C = {
 
 const TRUST_POINTS = [
   'Live talent, booking, outfit and notice workflows',
-  'Role-based access for admin, clients and talent',
-  'Secure sign up backed by the live Convex database',
+  'Responsive workspace designed for desktop, tablet and mobile',
+  'Clean agency operations for bookings, gigs, outfits and profiles',
 ];
 
 export default function LoginScreen() {
