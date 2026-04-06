@@ -72,7 +72,9 @@ function PhotoSlider({ photos }: { photos: string[] }) {
         scrollEventThrottle={16}
       >
         {valid.map((url: string, i: number) => (
-          <Image key={i} source={{ uri: url }} style={{ width: SLIDE_W, height: SLIDE_W * 1.2, borderRadius: 14 }} />
+          <View key={i} style={styles.sliderFrame}>
+            <Image source={{ uri: url }} style={styles.sliderImg} />
+          </View>
         ))}
       </ScrollView>
       {valid.length > 1 && (
@@ -259,7 +261,9 @@ export default function SearchTalentScreen() {
                 onLongPress={() => toggleSelect(item.id || item._id)}
                 activeOpacity={0.8}
               >
-                <Image source={{ uri: photoUrl }} style={[styles.gridImg, { width: CARD_W - (isSel ? 4 : 0), height: CARD_W * 1.3 }]} />
+                <View style={[styles.gridImgFrame, { width: CARD_W - (isSel ? 4 : 0), height: CARD_W * 1.3 }]}>
+                  <Image source={{ uri: photoUrl }} style={styles.gridImg} />
+                </View>
                 <TouchableOpacity
                   style={[styles.checkbox, isSel && styles.checkboxActive]}
                   onPress={() => toggleSelect(item.id || item._id)}
@@ -398,7 +402,9 @@ export default function SearchTalentScreen() {
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
                   {allProfiles.filter((t: any) => selectedIds.has(t.id || t._id)).map((t: any) => (
                     <View key={t.id || t._id} style={{ alignItems: 'center', marginRight: 12 }}>
-                      <Image source={{ uri: t.photos?.[0] || t.photoUrls?.[0] }} style={{ width: 50, height: 65, borderRadius: 8, borderWidth: 2, borderColor: C.gold }} />
+                      <View style={styles.selectedThumbFrame}>
+                        <Image source={{ uri: t.photos?.[0] || t.photoUrls?.[0] }} style={styles.selectedThumbImg} />
+                      </View>
                       <Text style={{ color: C.text, fontSize: 10, marginTop: 4, maxWidth: 56, textAlign: 'center' }} numberOfLines={1}>{t.firstName}</Text>
                     </View>
                   ))}
@@ -555,7 +561,16 @@ const styles = StyleSheet.create({
   // Grid cards
   gridCard: { backgroundColor: C.card, borderRadius: 10, overflow: 'hidden' },
   gridCardSelected: { borderWidth: 2, borderColor: C.gold },
-  gridImg: { resizeMode: 'cover' as any },
+  gridImgFrame: {
+    backgroundColor: C.cardLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gridImg: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'contain' as any,
+  },
   checkbox: {
     position: 'absolute', top: 8, right: 8,
     width: 24, height: 24, borderRadius: 12,
@@ -616,8 +631,38 @@ const styles = StyleSheet.create({
     color: C.text, borderWidth: 1, borderColor: C.border,
   },
   bookingInfo: { fontSize: 13, color: C.sub, marginBottom: 8 },
+  selectedThumbFrame: {
+    width: 50,
+    height: 65,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: C.gold,
+    backgroundColor: C.cardLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  selectedThumbImg: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'contain' as any,
+  },
 
   // Detail modal
+  sliderFrame: {
+    width: SLIDE_W,
+    height: SLIDE_W * 1.2,
+    borderRadius: 14,
+    backgroundColor: C.cardLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  sliderImg: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'contain' as any,
+  },
   chip: { backgroundColor: 'rgba(201,168,76,0.12)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 },
   chipText: { color: C.gold, fontSize: 11, fontWeight: '500' },
   sectionTitle: { fontSize: 16, fontWeight: '700', color: C.text, marginTop: 16, marginBottom: 8 },
