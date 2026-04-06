@@ -207,7 +207,7 @@ export default function LoginScreen() {
                     Book premium talent with a proper agency dashboard built for web.
                   </Text>
                   <Text style={[st.heroBody, isDesktop ? st.heroBodyDesktop : null]}>
-                    Create your account to access the live client, talent and admin workflows backed by Convex.
+                    Create your account to access live client, talent and admin workflows in one place.
                   </Text>
                 </View>
 
@@ -319,7 +319,7 @@ export default function LoginScreen() {
 
                 <View style={st.authHint}>
                   <Ionicons name="shield-checkmark-outline" size={16} color={C.sub} />
-                  <Text style={st.authHintText}>Web sign in uses the live Convex backend and requires account creation.</Text>
+                  <Text style={st.authHintText}>Web sign in requires account creation and gives access to the live platform.</Text>
                 </View>
 
                 <Text style={st.footer}>By continuing, you agree to our Terms of Service and Privacy Policy.</Text>
