@@ -2,11 +2,14 @@ import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, FlatList, Image,
   ScrollView, StatusBar, Dimensions, Modal, Alert, TextInput,
+  ActivityIndicator, Linking, Platform, KeyboardAvoidingView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useQuery, useMutation } from 'convex/react';
+import { api } from '../convex/_generated/api';
 
 const C = {
   bg: '#0A0A0F', card: '#141420', cardLight: '#1E1E2E',
@@ -599,6 +602,68 @@ const TALENT = [
     workExperience: '3+ years modelling. Local and regional brands.',
     availability: 'Available with 1 week notice. Based Kimberley.'
   },
+{
+id: '51', firstName: 'Gofiwa', lastName: 'Baloi', city: 'Johannesburg', area: 'Midrand', race: 'Black', bodyType: 'Slim', heightCm: 167, categories: ['Model','Hostess','Brand Ambassador'], status: 'pending',
+photos: t5('young african female model natural beauty portrait',5101),
+background: 'Aspiring model and hostess from Midrand. Passionate about fashion and brand representation.',
+qualifications: 'Matric Certificate | Currently studying Marketing',
+skills: ['Social media', 'Photography', 'Event hosting', 'Brand promotion', 'Zulu, English'],
+hobbies: ['Fashion styling', 'Social media', 'Fitness'],
+talents: ['Brand activations', 'Social media campaigns', 'Event hosting'],
+workExperience: '1 year freelance promotions. Community events and small brand activations.',
+availability: 'Available weekends and flexible weekdays. 24 hours notice.'
+},
+{
+id: '52', firstName: 'Thandiwe', lastName: 'Ndaba', city: 'Durban', area: 'Umhlanga', race: 'Black', bodyType: 'Athletic', heightCm: 174, categories: ['Model','Promoter'], status: 'pending',
+photos: t5('athletic african female model confident beach durban',5201),
+background: 'Athletic model from Umhlanga with a strong social media presence.',
+qualifications: 'BA Communications | Social Media Marketing Certificate',
+skills: ['Content creation', 'Social media', 'Event MC', 'Zulu, English'],
+hobbies: ['Beach fitness', 'Content creation', 'Travel'],
+talents: ['Commercial modelling', 'Social media campaigns', 'MC work'],
+workExperience: '2 years content creation and brand partnerships.',
+availability: 'Available most days with 48 hours notice. Based Durban.'
+},
+{
+id: '53', firstName: 'Samantha', lastName: 'October', city: 'Cape Town', area: 'Woodstock', race: 'Coloured', bodyType: 'Curvy', heightCm: 165, categories: ['Hostess','Bottle Girl','Promoter'], status: 'pending',
+photos: t5('curvy coloured female hostess glamorous cape town nightlife',5301),
+background: 'Glamorous hostess with nightlife experience in Cape Town.',
+qualifications: 'Hospitality Certificate | Bartending Certification',
+skills: ['VIP hosting', 'Bottle service', 'Event coordination', 'Afrikaans, English'],
+hobbies: ['Nightlife events', 'Fashion', 'Dance'],
+talents: ['Nightlife hosting', 'Brand activations', 'Event promotion'],
+workExperience: '3 years nightlife hosting at premium Cape Town venues.',
+availability: 'Available evenings and weekends. Flexible for premium bookings.'
+},
+];
+
+
+type DemoMemberType = {
+  id: string; name: string; company: string; role: string;
+  phone: string; email: string; city: string; category: string;
+};
+
+const DEMO_MEMBERS: DemoMemberType[] = [
+  { id: 'c1', name: 'Sipho Ndlovu', company: 'Platinum Events Corp', role: 'CEO', phone: '+27 82 555 1001', email: 'sipho@platinumevents.co.za', city: 'Johannesburg', category: 'corporate' },
+  { id: 'c2', name: 'Amanda van der Merwe', company: 'ABN Group', role: 'Marketing Director', phone: '+27 83 555 1002', email: 'amanda@abngroup.co.za', city: 'Cape Town', category: 'corporate' },
+  { id: 'c3', name: 'Rajesh Patel', company: 'Patel Holdings', role: 'Events Manager', phone: '+27 84 555 1003', email: 'rajesh@patelholdings.co.za', city: 'Durban', category: 'corporate' },
+  { id: 'c4', name: 'Thabo Mokoena', company: 'Standard Bank', role: 'Sponsorship Lead', phone: '+27 82 555 1004', email: 'thabo.mokoena@standardbank.co.za', city: 'Johannesburg', category: 'corporate' },
+  { id: 'c5', name: 'Lauren Smit', company: 'Coca-Cola SA', role: 'Brand Manager', phone: '+27 83 555 1005', email: 'lauren.smit@coca-cola.co.za', city: 'Johannesburg', category: 'corporate' },
+  { id: 'e1', name: 'Nandi Mkhize', company: 'NM Golf Events', role: 'Tournament Director', phone: '+27 82 555 2001', email: 'nandi@nmevents.co.za', city: 'Johannesburg', category: 'golf_days' },
+  { id: 'e2', name: 'Pierre du Plessis', company: 'Cape Golf Tours', role: 'Managing Director', phone: '+27 83 555 2002', email: 'pierre@eventfulsa.co.za', city: 'Cape Town', category: 'golf_days' },
+  { id: 'e3', name: 'Busisiwe Dube', company: 'Golf Day Pros', role: 'Event Coordinator', phone: '+27 84 555 2003', email: 'busi@busievents.co.za', city: 'Durban', category: 'golf_days' },
+  { id: 'e4', name: 'Craig Thompson', company: 'Highveld Golf Experiences', role: 'Operations Manager', phone: '+27 82 555 2004', email: 'craig@ctevents.co.za', city: 'Pretoria', category: 'golf_days' },
+  { id: 'e5', name: 'Zanele Khumalo', company: 'ZK Golf Promotions', role: 'Tournament Organiser', phone: '+27 83 555 2005', email: 'zanele@zkproductions.co.za', city: 'Johannesburg', category: 'golf_days' },
+  { id: 'r1', name: 'Marco Rossi', company: 'The Palazzo', role: 'General Manager', phone: '+27 82 555 3001', email: 'marco@thepalazzo.co.za', city: 'Johannesburg', category: 'restaurants' },
+  { id: 'r2', name: 'Fatima Ismail', company: 'Spice Kitchen', role: 'Owner & Head Chef', phone: '+27 83 555 3002', email: 'fatima@spicekitchen.co.za', city: 'Durban', category: 'restaurants' },
+  { id: 'r3', name: 'David Wilson', company: 'The Test Kitchen', role: 'Events Coordinator', phone: '+27 84 555 3003', email: 'david@thetestkitchen.co.za', city: 'Cape Town', category: 'restaurants' },
+  { id: 'r4', name: 'Nomsa Molefe', company: 'Ubuntu Cuisine', role: 'Owner', phone: '+27 82 555 3004', email: 'nomsa@ubuntucuisine.co.za', city: 'Pretoria', category: 'restaurants' },
+  { id: 'r5', name: 'James Anderson', company: 'The Butcher Shop', role: 'Venue Manager', phone: '+27 83 555 3005', email: 'james@thebutchershop.co.za', city: 'Johannesburg', category: 'restaurants' },
+  { id: 'a1', name: 'Thabiso Mahlangu', company: 'Prestige Models SA', role: 'Agency Director', phone: '+27 82 555 4001', email: 'thabiso@prestigemodels.co.za', city: 'Johannesburg', category: 'agencies' },
+  { id: 'a2', name: 'Claire Botha', company: 'Cape Talent Agency', role: 'Talent Manager', phone: '+27 83 555 4002', email: 'claire@capetalent.co.za', city: 'Cape Town', category: 'agencies' },
+  { id: 'a3', name: 'Michael Nkosi', company: 'Urban Talent SA', role: 'Booking Director', phone: '+27 84 555 4003', email: 'michael@urbantalent.co.za', city: 'Durban', category: 'agencies' },
+  { id: 'a4', name: 'Sarah van Zyl', company: 'Elite Events Agency', role: 'Operations Manager', phone: '+27 82 555 4004', email: 'sarah@eliteevents.co.za', city: 'Pretoria', category: 'agencies' },
+  { id: 'a5', name: 'Lungile Dlamini', company: 'Afri-Talent Connect', role: 'Founder & CEO', phone: '+27 83 555 4005', email: 'lungile@afritalent.co.za', city: 'Johannesburg', category: 'agencies' },
 ];
 
 const GIGS = [
@@ -607,6 +672,11 @@ const GIGS = [
   { id: 'g3', title: 'Corporate Golf Day Models', city: 'Pretoria', venue: 'Silver Lakes Golf Estate', date: '22 Mar 2025', needed: 6, categories: ['Model','Hostess'], comp: 'R1,800/day', type: 'Golf Day', desc: 'Annual corporate golf day. Need models for registration, beverage service, and prize-giving ceremony.', interests: 3 },
   { id: 'g4', title: 'LIV Golf South Africa - Event Hostesses & Ambience Models', city: 'Johannesburg', venue: 'The Wanderers Club, Illovo', date: '12-14 Apr 2025', needed: 30, categories: ['Model','Hostess','Ambience','Brand Ambassador'], comp: 'R3,500/day', type: 'Golf Day', desc: 'LIV Golf is coming to South Africa! We need 30 premium hostesses and ambience models for a 3-day international golf tournament. Roles include VIP hospitality lounge hosting, player registration, beverage cart models, branded activation stands, and on-course ambience. Must be professional, well-groomed, and comfortable in an upscale international sporting environment. International media exposure guaranteed.', interests: 18 },
   { id: 'g5', title: 'SAICA Engineering Golf Day - Hostesses & Registration Models', city: 'Johannesburg', venue: 'Houghton Golf Club', date: '5 May 2025', needed: 10, categories: ['Hostess','Model','Brand Ambassador'], comp: 'R2,200/day', type: 'Golf Day', desc: 'Annual SAICA Engineering charity golf day at the prestigious Houghton Golf Club. Need 10 professional hostesses and models for player registration, hole sponsorship activations, beverage service on course, and prize-giving ceremony hosting. Corporate dress code. Must be punctual, articulate, and comfortable engaging with senior executives and professionals.', interests: 6 },
+  { id: 'g6', title: 'Samsung Galaxy Launch - Brand Ambassadors', city: 'Johannesburg', venue: 'Sandton Convention Centre', date: '18 Apr 2025', needed: 12, categories: ['Brand Ambassador','Hostess'], comp: 'R2,200/day', type: 'Brand Launch', desc: 'Samsung is launching their new Galaxy series. We need 12 polished brand ambassadors to demonstrate products and assist with registration.', interests: 7 },
+  { id: 'g7', title: 'Durban July Race Day Models', city: 'Durban', venue: 'Greyville Racecourse', date: '5 Jul 2025', needed: 15, categories: ['Model','Hostess','Ambience'], comp: 'R3,000/day', type: 'Horse Racing', desc: 'The prestigious Durban July horse racing event. Need elegant models and hostesses for VIP marquees, champagne service, and fashion showcase.', interests: 12 },
+  { id: 'g8', title: 'Cape Town Fashion Week Backstage Team', city: 'Cape Town', venue: 'CTICC', date: '20-23 Mar 2025', needed: 25, categories: ['Model','Hostess','Brand Ambassador'], comp: 'R2,500/day', type: 'Fashion Show', desc: 'Cape Town Fashion Week needs 25 models and backstage support. Runway modelling, front-of-house hosting, and designer assistant positions.', interests: 15 },
+  { id: 'g9', title: 'Castle Lager Festival Promoters', city: 'Johannesburg', venue: 'Zoo Lake', date: '29 Mar 2025', needed: 10, categories: ['Promoter','Bottle Girl'], comp: 'R1,800/day', type: 'Music Festival', desc: 'Castle Lager is sponsoring a music festival. Need promoters for sampling, crowd engagement, and VIP bottle service. Branded outfits provided.', interests: 4 },
+  { id: 'g10', title: 'BMW Dealer Launch Event', city: 'Pretoria', venue: 'BMW Menlyn Showroom', date: '12 Apr 2025', needed: 6, categories: ['Model','Hostess'], comp: 'R2,800/day', type: 'Automotive Launch', desc: 'BMW launching new dealership. Need 6 sophisticated hostesses for the unveiling. Guest reception, champagne service, and VIP tours.', interests: 2 },
 ];
 
 const BOOKINGS = [
@@ -619,6 +689,18 @@ const BOOKINGS = [
   { id: 'b3', company: 'Elevation Events', type: 'Conference', city: 'Durban', venue: 'Durban ICC', date: '10 Apr 2025', count: 3, status: 'reviewed',
     talentIds: ['25', '26', '27'],
     notes: 'Corporate conference registration and hosting. Professional attire required.' },
+  { id: 'b4', company: 'Standard Bank', type: 'Golf Day', city: 'Johannesburg', venue: 'Houghton Golf Club', date: '5 May 2025', count: 6, status: 'pending',
+    talentIds: ['1', '4', '9', '34', '35', '37'],
+    notes: 'Annual charity golf day. Need models for registration, hole activations, and prize-giving. Corporate dress code.' },
+  { id: 'b5', company: 'Samsung South Africa', type: 'Brand Launch', city: 'Johannesburg', venue: 'Sandton Convention Centre', date: '18 Apr 2025', count: 10, status: 'confirmed',
+    talentIds: ['1', '2', '3', '5', '6', '7', '8', '9', '10', '34'],
+    notes: 'Galaxy S25 launch event. Brand ambassadors must be tech-savvy. Product training on 17 Apr. Branded uniforms provided.' },
+  { id: 'b6', company: 'Coca-Cola SA', type: 'Music Festival', city: 'Johannesburg', venue: 'Zoo Lake', date: '29 Mar 2025', count: 8, status: 'reviewed',
+    talentIds: ['3', '5', '6', '8', '36', '39', '44', '48'],
+    notes: 'Festival sampling and crowd engagement. Need energetic promoters. Branded outfits provided on-site.' },
+  { id: 'b7', company: 'BMW Menlyn', type: 'Automotive Launch', city: 'Pretoria', venue: 'BMW Menlyn Showroom', date: '12 Apr 2025', count: 4, status: 'pending',
+    talentIds: ['34', '35', '37', '38'],
+    notes: 'Luxury dealership opening. Need elegant hostesses for VIP guest reception. Black cocktail attire.' },
 ];
 
 const OUTFIT_CATEGORIES = ['All', 'Events', 'Promotions', 'Club', 'Golf Days', 'Activations', 'Fashion Shows'];
@@ -1182,27 +1264,221 @@ const Tab = createBottomTabNavigator();
 
 // ======= ADMIN SCREENS =======
 function AdminDash() {
-  const pending = TALENT.filter(t => t.status === 'pending');
-  const approved = TALENT.filter(t => t.status === 'approved');
+  const [activeTab, setActiveTab] = useState<string>('talent');
+  const allProfiles = useQuery(api.demoAdmin.listProfiles, { status: 'approved' });
+  const pendingProfiles = useQuery(api.demoAdmin.listProfiles, { status: 'pending' });
+  const [selectedProfile, setSelectedProfile] = useState<any>(null);
+  const [showDeclineModal, setShowDeclineModal] = useState(false);
+  const [declineReason, setDeclineReason] = useState('');
+  const approveProfileMut = useMutation(api.demoAdmin.approveProfile);
+  const declineProfileMut = useMutation(api.demoAdmin.declineProfile);
+  const deleteProfileMut = useMutation(api.demoAdmin.deleteProfile);
+
+  const TABS = [
+    { key: 'talent', label: 'Talent', icon: 'people', color: C.gold },
+    { key: 'golf_days', label: 'Golf Days', icon: 'flag', color: '#F59E0B' },
+    { key: 'corporate', label: 'Corporate', icon: 'business', color: '#8B5CF6' },
+    { key: 'restaurants', label: 'Restaurants', icon: 'restaurant', color: '#10B981' },
+    { key: 'agencies', label: 'Agencies', icon: 'briefcase', color: '#3B82F6' },
+  ];
+
+  const approvedTalent = allProfiles || [];
+  const pendingTalent = pendingProfiles || [];
+  const allTalent = [...approvedTalent, ...pendingTalent];
+  const membersForCategory = (cat: string) => DEMO_MEMBERS.filter((m: DemoMemberType) => m.category === cat);
+
+  const tabCounts: Record<string, number> = {
+    talent: allTalent.length,
+    corporate: membersForCategory('corporate').length,
+    golf_days: membersForCategory('golf_days').length,
+    restaurants: membersForCategory('restaurants').length,
+    agencies: membersForCategory('agencies').length,
+  };
+
+  const getInitials = (name: string) => {
+    const parts = name.split(' ');
+    return parts.length >= 2 ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase() : name.substring(0, 2).toUpperCase();
+  };
+  const getAvatarColor = (cat: string) => {
+    const m: Record<string, string> = { corporate: '#8B5CF6', golf_days: '#F59E0B', restaurants: '#10B981', agencies: '#3B82F6' };
+    return m[cat] || C.gold;
+  };
+
+  const approveTalent = async (id: any) => {
+    try { await approveProfileMut({ profileId: id }); setSelectedProfile(null); Alert.alert('Approved', 'Talent approved.'); } catch (err: any) { Alert.alert('Error', err.message); }
+  };
+  const confirmDecline = async () => {
+    if (!selectedProfile) return;
+    try { await declineProfileMut({ profileId: selectedProfile._id, reason: declineReason || 'No reason provided' }); setShowDeclineModal(false); setSelectedProfile(null); Alert.alert('Declined', 'Application declined.'); } catch (err: any) { Alert.alert('Error', err.message); }
+  };
+  const deleteTalent = (t: any) => {
+    Alert.alert('Delete', 'Delete ' + (t.firstName || 'this talent') + '?', [
+      { text: 'Cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => { try { await deleteProfileMut({ profileId: t._id }); setSelectedProfile(null); } catch (err: any) { Alert.alert('Error', err.message); } }},
+    ]);
+  };
+
+  const ContactBar = ({ item }: { item: any }) => (
+    <View style={{ flexDirection: 'row', gap: 6, marginTop: 10 }}>
+      {item.phone ? (<>
+        <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: 'rgba(16,185,129,0.12)', paddingVertical: 8, borderRadius: 8 }} onPress={() => Linking.openURL('tel:' + (item.phone || '').replace(/[^0-9+]/g, ''))}>
+          <Ionicons name="call" size={14} color={C.green} /><Text style={{ color: C.green, fontSize: 11, fontWeight: '600' }}>Call</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: 'rgba(59,130,246,0.12)', paddingVertical: 8, borderRadius: 8 }} onPress={() => Linking.openURL('sms:' + (item.phone || '').replace(/[^0-9+]/g, ''))}>
+          <Ionicons name="chatbubble" size={14} color="#3B82F6" /><Text style={{ color: '#3B82F6', fontSize: 11, fontWeight: '600' }}>SMS</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: 'rgba(37,211,102,0.12)', paddingVertical: 8, borderRadius: 8 }} onPress={() => { const p = (item.phone || '').replace(/[^0-9+]/g, ''); const wa = p.startsWith('+') ? p.replace('+','') : p.startsWith('0') ? '27'+p.substring(1) : p; const n = item.name || ((item.firstName||'') + ' ' + (item.lastName||'')); Linking.openURL('https://wa.me/' + wa + '?text=' + encodeURIComponent('Hi ' + n + ', reaching out from Diamond Angels.')); }}>
+          <Ionicons name="logo-whatsapp" size={14} color="#25D366" /><Text style={{ color: '#25D366', fontSize: 11, fontWeight: '600' }}>WhatsApp</Text>
+        </TouchableOpacity>
+      </>) : null}
+      {item.email ? (
+        <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: 'rgba(201,168,76,0.12)', paddingVertical: 8, borderRadius: 8 }} onPress={() => { const n = item.name || ((item.firstName||'') + ' ' + (item.lastName||'')); Linking.openURL('mailto:' + item.email + '?subject=' + encodeURIComponent('Diamond Angels - ' + n)); }}>
+          <Ionicons name="mail" size={14} color={C.gold} /><Text style={{ color: C.gold, fontSize: 11, fontWeight: '600' }}>Email</Text>
+        </TouchableOpacity>
+      ) : null}
+    </View>
+  );
+
+  const renderTalentCard = (item: any) => (
+    <TouchableOpacity key={item._id || item.id} style={{ backgroundColor: C.card, borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: C.border }} onPress={() => setSelectedProfile(item)} activeOpacity={0.7}>
+      <View style={{ flexDirection: 'row', gap: 12 }}>
+        {item.photoUrls && item.photoUrls[0] ? (
+          <Image source={{ uri: item.photoUrls[0] }} style={{ width: 60, height: 76, borderRadius: 10 }} />
+        ) : (
+          <View style={{ width: 60, height: 76, borderRadius: 10, backgroundColor: C.cardLight, alignItems: 'center', justifyContent: 'center' }}><Ionicons name="person" size={24} color={C.muted} /></View>
+        )}
+        <View style={{ flex: 1 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={{ color: C.text, fontWeight: '700', fontSize: 15 }}>{item.firstName || ''} {item.lastName || ''}</Text>
+            <View style={[s.badge, { backgroundColor: item.status === 'approved' ? 'rgba(16,185,129,0.15)' : item.status === 'pending' ? 'rgba(245,158,11,0.15)' : 'rgba(239,68,68,0.15)' }]}>
+              <Text style={[s.badgeText, { color: item.status === 'approved' ? C.green : item.status === 'pending' ? C.warn : C.red }]}>{item.status}</Text>
+            </View>
+          </View>
+          <Text style={{ color: C.sub, fontSize: 12, marginTop: 2 }}>{item.city || 'Unknown'}{item.area ? ', ' + item.area : ''}{item.heightCm ? ' \u00b7 ' + item.heightCm + 'cm' : ''}</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+            {(item.categories || []).slice(0, 3).map((c: string, i: number) => (
+              <View key={i} style={{ backgroundColor: 'rgba(201,168,76,0.12)', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 }}><Text style={{ color: C.gold, fontSize: 10, fontWeight: '500' }}>{c}</Text></View>
+            ))}
+          </View>
+        </View>
+      </View>
+      {(item.phone || item.email) ? <ContactBar item={item} /> : null}
+    </TouchableOpacity>
+  );
+
+  const renderMemberCard = (member: DemoMemberType) => (
+    <View key={member.id} style={{ backgroundColor: C.card, borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: C.border }}>
+      <View style={{ flexDirection: 'row', gap: 12 }}>
+        <View style={{ width: 52, height: 52, borderRadius: 26, backgroundColor: getAvatarColor(member.category) + '25', alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ color: getAvatarColor(member.category), fontWeight: '800', fontSize: 16 }}>{getInitials(member.name)}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: C.text, fontWeight: '700', fontSize: 15 }}>{member.name}</Text>
+          <Text style={{ color: C.gold, fontSize: 12, fontWeight: '600', marginTop: 1 }}>{member.company}</Text>
+          <Text style={{ color: C.sub, fontSize: 12, marginTop: 1 }}>{member.role}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 }}>
+            <Ionicons name="location-outline" size={11} color={C.muted} /><Text style={{ color: C.muted, fontSize: 11 }}>{member.city}</Text>
+          </View>
+        </View>
+      </View>
+      <ContactBar item={member} />
+    </View>
+  );
+
   return (
     <SafeAreaView style={s.safe}>
-      <ScrollView style={s.scroll} contentContainerStyle={{ padding: 16 }}>
-        <Text style={s.h1}>Dashboard</Text>
-        <View style={s.statsRow}>
-          <View style={s.statCard}><Text style={s.statNum}>{pending.length}</Text><Text style={s.statLabel}>Pending</Text></View>
-          <View style={s.statCard}><Text style={s.statNum}>{approved.length}</Text><Text style={s.statLabel}>Approved</Text></View>
-          <View style={s.statCard}><Text style={s.statNum}>{BOOKINGS.filter(b=>b.status==='pending').length}</Text><Text style={s.statLabel}>New Bookings</Text></View>
-          <View style={s.statCard}><Text style={s.statNum}>{GIGS.length}</Text><Text style={s.statLabel}>Open Gigs</Text></View>
+      <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 }}>
+        <Text style={s.h1}>Members</Text>
+        <Text style={{ color: C.sub, fontSize: 13, marginTop: 2 }}>Manage all contacts & talent</Text>
+      </View>
+      <View style={{ paddingBottom: 10, borderBottomWidth: 1, borderBottomColor: C.border }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
+          {TABS.map(tab => (
+            <TouchableOpacity key={tab.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 22, backgroundColor: activeTab === tab.key ? tab.color + '20' : C.cardLight, borderWidth: 1.5, borderColor: activeTab === tab.key ? tab.color : C.border }} onPress={() => setActiveTab(tab.key)}>
+              <Ionicons name={tab.icon as any} size={15} color={activeTab === tab.key ? tab.color : C.muted} />
+              <Text style={{ color: activeTab === tab.key ? tab.color : C.sub, fontSize: 13, fontWeight: '600' }}>{tab.label}</Text>
+              <View style={{ backgroundColor: activeTab === tab.key ? tab.color + '30' : C.border, paddingHorizontal: 6, paddingVertical: 1, borderRadius: 10, minWidth: 22, alignItems: 'center' }}>
+                <Text style={{ color: activeTab === tab.key ? tab.color : C.muted, fontSize: 10, fontWeight: '700' }}>{tabCounts[tab.key] || 0}</Text>
+              </View>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+      {activeTab === 'talent' ? (
+        !allProfiles ? (
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator size="large" color={C.gold} /><Text style={{ color: C.sub, marginTop: 12 }}>Loading talent...</Text></View>
+        ) : (
+          <FlatList data={allTalent} keyExtractor={(item: any) => item._id || item.id} contentContainerStyle={{ padding: 16 }} renderItem={({ item }: any) => renderTalentCard(item)}
+            ListEmptyComponent={<View style={{ alignItems: 'center', paddingVertical: 40 }}><Ionicons name="people-outline" size={48} color={C.muted} /><Text style={{ color: C.sub, fontSize: 15, marginTop: 12 }}>No talent profiles yet</Text></View>} />
+        )
+      ) : (
+        <FlatList data={membersForCategory(activeTab)} keyExtractor={(item: any) => item.id} contentContainerStyle={{ padding: 16 }} renderItem={({ item }: any) => renderMemberCard(item)}
+          ListEmptyComponent={<View style={{ alignItems: 'center', paddingVertical: 40 }}><Ionicons name="people-outline" size={48} color={C.muted} /><Text style={{ color: C.sub, fontSize: 15, marginTop: 12 }}>No members in this category</Text></View>} />
+      )}
+      <Modal visible={!!selectedProfile && !showDeclineModal} animationType="slide" transparent>
+        {selectedProfile && (
+          <View style={s.modalBg}><View style={s.modalContent}><ScrollView keyboardShouldPersistTaps="handled">
+            {selectedProfile.photoUrls && selectedProfile.photoUrls.filter(Boolean).length > 0 ? (
+              <PhotoSlider photos={selectedProfile.photoUrls.filter(Boolean)} />
+            ) : (
+              <View style={{ width: SLIDE_W, height: SLIDE_W * 0.6, borderRadius: 14, backgroundColor: C.cardLight, alignItems: 'center', justifyContent: 'center' }}><Ionicons name="person" size={48} color={C.muted} /></View>
+            )}
+            <Text style={[s.h1, { marginTop: 16 }]}>{selectedProfile.firstName || ''} {selectedProfile.lastName || ''}</Text>
+            <View style={[s.badge, { backgroundColor: selectedProfile.status === 'approved' ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)', marginTop: 4, alignSelf: 'flex-start' }]}>
+              <Text style={[s.badgeText, { color: selectedProfile.status === 'approved' ? C.green : C.warn }]}>{selectedProfile.status}</Text>
+            </View>
+            <Text style={s.listSub}>{selectedProfile.city || ''}{selectedProfile.area ? ', ' + selectedProfile.area : ''}</Text>
+            {(selectedProfile.categories || []).length > 0 && (<View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>{selectedProfile.categories.map((c: string, i: number) => <View key={i} style={sty.chip}><Text style={sty.chipText}>{c}</Text></View>)}</View>)}
+            {selectedProfile.phone ? <Text style={[s.listSub, { marginTop: 8 }]}>Phone: {selectedProfile.phone}</Text> : null}
+            {selectedProfile.email ? <Text style={s.listSub}>Email: {selectedProfile.email}</Text> : null}
+            <Text style={[s.h2, { marginTop: 12 }]}>Contact</Text>
+            <ContactBar item={selectedProfile} />
+            {selectedProfile.status === 'pending' ? (
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
+                <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: C.green, paddingVertical: 14, borderRadius: 12 }} onPress={() => approveTalent(selectedProfile._id)}><Ionicons name="checkmark-circle" size={18} color="#FFF" /><Text style={{ color: '#FFF', fontWeight: '700', fontSize: 15 }}>Approve</Text></TouchableOpacity>
+                <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: C.red, paddingVertical: 14, borderRadius: 12 }} onPress={() => { setDeclineReason(''); setShowDeclineModal(true); }}><Ionicons name="close-circle" size={18} color="#FFF" /><Text style={{ color: '#FFF', fontWeight: '700', fontSize: 15 }}>Decline</Text></TouchableOpacity>
+              </View>
+            ) : (
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
+                <TouchableOpacity style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: C.red, paddingVertical: 14, borderRadius: 12 }} onPress={() => deleteTalent(selectedProfile)}><Ionicons name="trash-outline" size={18} color="#FFF" /><Text style={{ color: '#FFF', fontWeight: '700', fontSize: 15 }}>Delete</Text></TouchableOpacity>
+              </View>
+            )}
+          </ScrollView>
+          <TouchableOpacity style={s.goldBtn} onPress={() => setSelectedProfile(null)}><Text style={s.goldBtnText}>Close</Text></TouchableOpacity>
+          </View></View>
+        )}
+      </Modal>
+      <Modal visible={showDeclineModal} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', padding: 32 }}>
+          <View style={{ backgroundColor: C.card, borderRadius: 20, padding: 24 }}>
+            <Text style={{ color: C.text, fontWeight: '800', fontSize: 18, marginBottom: 8 }}>Decline Application</Text>
+            <TextInput style={{ backgroundColor: C.cardLight, borderRadius: 12, padding: 14, borderWidth: 1, borderColor: C.border, color: C.text, fontSize: 14, minHeight: 80, textAlignVertical: 'top' }} value={declineReason} onChangeText={setDeclineReason} placeholder="Enter decline reason..." placeholderTextColor={C.muted} multiline autoFocus />
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+              <TouchableOpacity style={{ flex: 1, backgroundColor: C.red, paddingVertical: 14, borderRadius: 12, alignItems: 'center' }} onPress={confirmDecline}><Text style={{ color: '#FFF', fontWeight: '700', fontSize: 15 }}>Decline</Text></TouchableOpacity>
+              <TouchableOpacity style={{ flex: 1, backgroundColor: C.cardLight, paddingVertical: 14, borderRadius: 12, alignItems: 'center' }} onPress={() => setShowDeclineModal(false)}><Text style={{ color: C.sub, fontWeight: '600', fontSize: 15 }}>Cancel</Text></TouchableOpacity>
+            </View>
+          </View>
         </View>
-      </ScrollView>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 function AdminTalent() {
-  const [talentList, setTalentList] = useState([...TALENT]);
+  const [statusFilter, setStatusFilter] = useState<string>('pending');
   const [detail, setDetail] = useState<any>(null);
   const [editModal, setEditModal] = useState(false);
+  const [declineReason, setDeclineReason] = useState('');
+  const [showDeclineModal, setShowDeclineModal] = useState(false);
+  const [declineTarget, setDeclineTarget] = useState<any>(null);
+
+  // Convex queries and mutations
+  const profiles = useQuery(api.demoAdmin.listProfiles, { status: statusFilter });
+  const counts = useQuery(api.demoAdmin.profileCounts);
+  const approveProfileMut = useMutation(api.demoAdmin.approveProfile);
+  const declineProfileMut = useMutation(api.demoAdmin.declineProfile);
+  const deleteProfileMut = useMutation(api.demoAdmin.deleteProfile);
+  const updateProfileMut = useMutation(api.demoAdmin.updateProfile);
 
   // Edit fields
   const [eFirstName, setEFirstName] = useState('');
@@ -1212,42 +1488,56 @@ function AdminTalent() {
   const [eRace, setERace] = useState('');
   const [eBodyType, setEBodyType] = useState('');
   const [eHeight, setEHeight] = useState('');
-  const [eBg, setEBg] = useState('');
-  const [eQualifications, setEQualifications] = useState('');
-  const [eWorkExp, setEWorkExp] = useState('');
-  const [eAvailability, setEAvailability] = useState('');
+  const [eBio, setEBio] = useState('');
   const [eCategories, setECategories] = useState<Set<string>>(new Set());
-  const [eSkills, setESkills] = useState('');
+  const [ePhone, setEPhone] = useState('');
+  const [eEmail, setEEmail] = useState('');
+  const [eInstagram, setEInstagram] = useState('');
 
   const RACE_OPTS = ['Black', 'White', 'Coloured', 'Indian', 'Asian', 'Other'];
   const BODY_OPTS = ['Slim', 'Athletic', 'Curvy', 'Petite', 'Plus Size'];
   const CAT_OPTS = ['Model', 'Hostess', 'Promoter', 'Brand Ambassador', 'Bottle Girl', 'Ambience', 'Actress', 'Dancer'];
 
   const openEdit = (t: any) => {
-    setEFirstName(t.firstName); setELastName(t.lastName);
-    setECity(t.city); setEArea(t.area);
-    setERace(t.race); setEBodyType(t.bodyType);
-    setEHeight(String(t.heightCm)); setEBg(t.background);
-    setEQualifications(t.qualifications); setEWorkExp(t.workExperience);
-    setEAvailability(t.availability); setECategories(new Set(t.categories));
-    setESkills(t.skills.join(', '));
+    setEFirstName(t.firstName || '');
+    setELastName(t.lastName || '');
+    setECity(t.city || '');
+    setEArea(t.area || '');
+    setERace(t.race || '');
+    setEBodyType(t.bodyType || '');
+    setEHeight(t.heightCm ? String(t.heightCm) : '');
+    setEBio(t.bio || '');
+    setECategories(new Set(t.categories || []));
+    setEPhone(t.phone || '');
+    setEEmail(t.email || '');
+    setEInstagram(t.instagram || '');
     setEditModal(true);
   };
 
-  const saveEdit = () => {
+  const saveEdit = async () => {
     if (!detail) return;
-    const updated = {
-      ...detail,
-      firstName: eFirstName, lastName: eLastName, city: eCity, area: eArea,
-      race: eRace, bodyType: eBodyType, heightCm: parseInt(eHeight) || detail.heightCm,
-      background: eBg, qualifications: eQualifications, workExperience: eWorkExp,
-      availability: eAvailability, categories: Array.from(eCategories),
-      skills: eSkills.split(',').map((sk: string) => sk.trim()).filter(Boolean),
-    };
-    setTalentList(prev => prev.map(t => t.id === detail.id ? updated : t));
-    setDetail(updated);
-    setEditModal(false);
-    Alert.alert('Saved', `${eFirstName} ${eLastName}'s profile updated.`);
+    try {
+      await updateProfileMut({
+        profileId: detail._id,
+        firstName: eFirstName || undefined,
+        lastName: eLastName || undefined,
+        city: eCity || undefined,
+        area: eArea || undefined,
+        race: eRace || undefined,
+        bodyType: eBodyType || undefined,
+        heightCm: parseInt(eHeight) || undefined,
+        bio: eBio || undefined,
+        categories: Array.from(eCategories),
+        phone: ePhone || undefined,
+        email: eEmail || undefined,
+        instagram: eInstagram || undefined,
+      });
+      setEditModal(false);
+      setDetail(null);
+      Alert.alert('Saved', 'Profile updated successfully.');
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to update profile.');
+    }
   };
 
   const toggleCat = (cat: string) => {
@@ -1256,69 +1546,234 @@ function AdminTalent() {
     setECategories(next);
   };
 
+  const pendingCount = counts?.pending ?? 0;
+  const approvedCount = counts?.approved ?? 0;
+  const declinedCount = counts?.declined ?? 0;
+
+  const approveTalent = async (id: any) => {
+    try {
+      await approveProfileMut({ profileId: id });
+      setDetail(null);
+      Alert.alert('Approved', 'Talent approved and added to roster.');
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to approve.');
+    }
+  };
+
+  const startDecline = (t: any) => {
+    setDeclineTarget(t);
+    setDeclineReason('');
+    setShowDeclineModal(true);
+  };
+
+  const confirmDecline = async () => {
+    if (!declineTarget) return;
+    try {
+      await declineProfileMut({
+        profileId: declineTarget._id,
+        reason: declineReason || 'No reason provided',
+      });
+      setShowDeclineModal(false);
+      setDeclineTarget(null);
+      setDetail(null);
+      Alert.alert('Declined', 'Application has been declined.');
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to decline.');
+    }
+  };
+
+  const deleteTalent = (t: any) => {
+    Alert.alert('Delete', `Delete ${t.firstName || 'this talent'}?`, [
+      { text: 'Cancel' },
+      {
+        text: 'Delete', style: 'destructive', onPress: async () => {
+          try {
+            await deleteProfileMut({ profileId: t._id });
+            setDetail(null);
+          } catch (err: any) {
+            Alert.alert('Error', err.message || 'Failed to delete.');
+          }
+        }
+      },
+    ]);
+  };
+
+  const filtered = profiles || [];
+
   return (
     <SafeAreaView style={s.safe}>
       <Text style={[s.h1, { padding: 16, paddingBottom: 8 }]}>Talent Management</Text>
-      <FlatList
-        data={talentList}
-        keyExtractor={i => i.id}
-        contentContainerStyle={{ padding: 16, paddingTop: 0 }}
-        renderItem={({ item }) => (
-          <TouchableOpacity style={s.talentCard} onPress={() => setDetail(item)}>
-            <Image source={{ uri: item.photos[0] }} style={s.talentThumb} />
-            <View style={{ flex: 1 }}>
-              <Text style={s.listTitle}>{item.firstName} {item.lastName}</Text>
-              <Text style={s.listSub}>{item.city}, {item.area} · {item.heightCm}cm</Text>
-              <Text style={s.listSub}>{item.categories.join(', ')}</Text>
-            </View>
-            <View style={[s.badge, { backgroundColor: 'rgba(16,185,129,0.15)' }]}>
-              <Text style={[s.badgeText, { color: C.green }]}>Approved</Text>
-            </View>
+      {/* Status Filter Tabs */}
+      <View style={{ flexDirection: 'row', paddingHorizontal: 16, gap: 8, marginBottom: 10 }}>
+        {[
+          { key: 'pending', label: 'Pending', count: pendingCount, color: C.warn },
+          { key: 'approved', label: 'Approved', count: approvedCount, color: C.green },
+          { key: 'declined', label: 'Declined', count: declinedCount, color: C.red },
+        ].map(tab => (
+          <TouchableOpacity
+            key={tab.key}
+            style={{
+              flex: 1, paddingVertical: 10, borderRadius: 12, alignItems: 'center',
+              backgroundColor: statusFilter === tab.key ? tab.color + '20' : C.cardLight,
+              borderWidth: 1, borderColor: statusFilter === tab.key ? tab.color : C.border,
+            }}
+            onPress={() => setStatusFilter(tab.key)}
+          >
+            <Text style={{ color: statusFilter === tab.key ? tab.color : C.sub, fontWeight: '700', fontSize: 15 }}>{tab.count}</Text>
+            <Text style={{ color: statusFilter === tab.key ? tab.color : C.muted, fontSize: 11, fontWeight: '600', marginTop: 2 }}>{tab.label}</Text>
           </TouchableOpacity>
-        )}
-      />
+        ))}
+      </View>
+
+      {!profiles ? (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator size="large" color={C.gold} />
+          <Text style={{ color: C.sub, marginTop: 12 }}>Loading talent...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={filtered}
+          keyExtractor={(i: any) => i._id}
+          contentContainerStyle={{ padding: 16, paddingTop: 0 }}
+          ListEmptyComponent={
+            <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+              <Ionicons name="people-outline" size={48} color={C.muted} />
+              <Text style={{ color: C.sub, fontSize: 15, marginTop: 12 }}>No {statusFilter} talent</Text>
+            </View>
+          }
+          renderItem={({ item }: { item: any }) => (
+            <TouchableOpacity style={s.talentCard} onPress={() => setDetail(item)}>
+              {item.photoUrls && item.photoUrls[0] ? (
+                <Image source={{ uri: item.photoUrls[0] }} style={s.talentThumb} />
+              ) : (
+                <View style={[s.talentThumb, { backgroundColor: C.cardLight, alignItems: 'center', justifyContent: 'center' }]}>
+                  <Ionicons name="person" size={24} color={C.muted} />
+                </View>
+              )}
+              <View style={{ flex: 1 }}>
+                <Text style={s.listTitle}>{item.firstName || ''} {item.lastName || ''}</Text>
+                <Text style={s.listSub}>{item.city || 'Unknown'}{item.area ? `, ${item.area}` : ''}{item.heightCm ? ` · ${item.heightCm}cm` : ''}</Text>
+                <Text style={s.listSub}>{(item.categories || []).join(', ') || 'No categories'}</Text>
+              </View>
+              <View style={[s.badge, {
+                backgroundColor: item.status === 'approved' ? 'rgba(16,185,129,0.15)' :
+                  item.status === 'pending' ? 'rgba(245,158,11,0.15)' : 'rgba(239,68,68,0.15)'
+              }]}>
+                <Text style={[s.badgeText, {
+                  color: item.status === 'approved' ? C.green : item.status === 'pending' ? C.warn : C.red
+                }]}>{item.status}</Text>
+              </View>
+            </TouchableOpacity>
+          )}
+        />
+      )}
 
       {/* Detail Modal */}
-      <Modal visible={!!detail && !editModal} animationType="slide" transparent>
+      <Modal visible={!!detail && !editModal && !showDeclineModal} animationType="slide" transparent>
         {detail && (
           <View style={s.modalBg}>
             <View style={s.modalContent}>
               <ScrollView keyboardShouldPersistTaps="handled">
-                <PhotoSlider photos={detail.photos} />
-                <Text style={[s.h1, { marginTop: 16 }]}>{detail.firstName} {detail.lastName}</Text>
-                <Text style={s.listSub}>{detail.city}, {detail.area} · {detail.race} · {detail.bodyType} · {detail.heightCm}cm</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
-                  {detail.categories.map((c: string, i: number) => <View key={i} style={sty.chip}><Text style={sty.chipText}>{c}</Text></View>)}
-                </View>
-                <Text style={[s.h2, { marginTop: 16 }]}>Background</Text>
-                <Text style={{ color: C.text, fontSize: 14, lineHeight: 20 }}>{detail.background}</Text>
-                <Text style={[s.h2, { marginTop: 12 }]}>Qualifications</Text>
-                <Text style={{ color: C.text, fontSize: 14, lineHeight: 20 }}>{detail.qualifications}</Text>
-                <Text style={[s.h2, { marginTop: 12 }]}>Skills</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
-                  {detail.skills.map((sk: string, i: number) => <View key={i} style={[sty.chip, { backgroundColor: 'rgba(139,92,246,0.12)' }]}><Text style={[sty.chipText, { color: '#A78BFA' }]}>{sk}</Text></View>)}
-                </View>
-                <Text style={[s.h2, { marginTop: 12 }]}>Work Experience</Text>
-                <Text style={{ color: C.text, fontSize: 14, lineHeight: 20 }}>{detail.workExperience}</Text>
-                <Text style={[s.h2, { marginTop: 12 }]}>Availability</Text>
-                <Text style={{ color: C.text, fontSize: 14, lineHeight: 20 }}>{detail.availability}</Text>
+                {detail.photoUrls && detail.photoUrls.filter(Boolean).length > 0 ? (
+                  <PhotoSlider photos={detail.photoUrls.filter(Boolean)} />
+                ) : (
+                  <View style={{ width: SLIDE_W, height: SLIDE_W * 0.6, borderRadius: 14, backgroundColor: C.cardLight, alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="person" size={48} color={C.muted} />
+                    <Text style={{ color: C.muted, fontSize: 13, marginTop: 8 }}>No photos uploaded</Text>
+                  </View>
+                )}
+                <Text style={[s.h1, { marginTop: 16 }]}>{detail.firstName || ''} {detail.lastName || ''}</Text>
+                <Text style={s.listSub}>
+                  {detail.city || 'Unknown'}{detail.area ? `, ${detail.area}` : ''} · {detail.race || 'N/A'} · {detail.bodyType || 'N/A'}{detail.heightCm ? ` · ${detail.heightCm}cm` : ''}
+                </Text>
+                {detail.phone ? <Text style={[s.listSub, { marginTop: 4 }]}>Phone: {detail.phone}</Text> : null}
+                {detail.email ? <Text style={s.listSub}>Email: {detail.email}</Text> : null}
+                {detail.instagram ? <Text style={s.listSub}>Instagram: {detail.instagram}</Text> : null}
 
-                <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
-                  <TouchableOpacity
-                    style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: C.gold, paddingVertical: 14, borderRadius: 12 }}
-                    onPress={() => openEdit(detail)}
-                  >
-                    <Ionicons name="create-outline" size={18} color={C.black} />
-                    <Text style={{ color: C.black, fontWeight: '700', fontSize: 15 }}>Edit</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: C.red, paddingVertical: 14, borderRadius: 12 }}
-                    onPress={() => Alert.alert('Delete Profile', `Are you sure you want to delete ${detail.firstName} ${detail.lastName}?`, [{ text: 'Cancel' }, { text: 'Delete', style: 'destructive', onPress: () => { setTalentList(prev => prev.filter(t => t.id !== detail.id)); setDetail(null); } }])}
-                  >
-                    <Ionicons name="trash-outline" size={18} color="#FFF" />
-                    <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 15 }}>Delete</Text>
-                  </TouchableOpacity>
-                </View>
+                {(detail.categories || []).length > 0 && (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+                    {detail.categories.map((c: string, i: number) => <View key={i} style={sty.chip}><Text style={sty.chipText}>{c}</Text></View>)}
+                  </View>
+                )}
+
+                {detail.bio ? (
+                  <>
+                    <Text style={[s.h2, { marginTop: 16 }]}>About</Text>
+                    <Text style={{ color: C.text, fontSize: 14, lineHeight: 20 }}>{detail.bio}</Text>
+                  </>
+                ) : null}
+
+                {detail.declineReason && detail.status === 'declined' ? (
+                  <View style={{ backgroundColor: 'rgba(239,68,68,0.1)', borderRadius: 12, padding: 12, marginTop: 12 }}>
+                    <Text style={{ color: C.red, fontWeight: '600', fontSize: 13, marginBottom: 4 }}>Decline Reason</Text>
+                    <Text style={{ color: C.sub, fontSize: 13 }}>{detail.declineReason}</Text>
+                  </View>
+                ) : null}
+
+                {/* Contact & Address Info */}
+                {(detail.workplace || detail.jobTitle) ? (
+                  <>
+                    <Text style={[s.h2, { marginTop: 12 }]}>Work</Text>
+                    <Text style={{ color: C.text, fontSize: 14 }}>
+                      {detail.jobTitle ? detail.jobTitle : ''}{detail.workplace ? ` at ${detail.workplace}` : ''}
+                    </Text>
+                  </>
+                ) : null}
+
+                {(detail.addressStreet || detail.addressCity) ? (
+                  <>
+                    <Text style={[s.h2, { marginTop: 12 }]}>Address</Text>
+                    <Text style={{ color: C.text, fontSize: 14 }}>
+                      {[detail.addressStreet, detail.addressCity, detail.addressState, detail.addressPostalCode].filter(Boolean).join(', ')}
+                    </Text>
+                  </>
+                ) : null}
+
+                {detail.nokFullName ? (
+                  <>
+                    <Text style={[s.h2, { marginTop: 12 }]}>Next of Kin</Text>
+                    <Text style={{ color: C.text, fontSize: 14 }}>
+                      {detail.nokFullName}{detail.nokRelationship ? ` (${detail.nokRelationship})` : ''}
+                    </Text>
+                    {detail.nokPhone ? <Text style={{ color: C.sub, fontSize: 13 }}>Phone: {detail.nokPhone}</Text> : null}
+                  </>
+                ) : null}
+
+                {detail.status === 'pending' ? (
+                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
+                    <TouchableOpacity
+                      style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: C.green, paddingVertical: 14, borderRadius: 12 }}
+                      onPress={() => approveTalent(detail._id)}
+                    >
+                      <Ionicons name="checkmark-circle" size={18} color="#FFF" />
+                      <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 15 }}>Approve</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: C.red, paddingVertical: 14, borderRadius: 12 }}
+                      onPress={() => startDecline(detail)}
+                    >
+                      <Ionicons name="close-circle" size={18} color="#FFF" />
+                      <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 15 }}>Decline</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
+                    <TouchableOpacity
+                      style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: C.gold, paddingVertical: 14, borderRadius: 12 }}
+                      onPress={() => openEdit(detail)}
+                    >
+                      <Ionicons name="create-outline" size={18} color={C.black} />
+                      <Text style={{ color: C.black, fontWeight: '700', fontSize: 15 }}>Edit</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: C.red, paddingVertical: 14, borderRadius: 12 }}
+                      onPress={() => deleteTalent(detail)}
+                    >
+                      <Ionicons name="trash-outline" size={18} color="#FFF" />
+                      <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 15 }}>Delete</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </ScrollView>
               <TouchableOpacity style={s.goldBtn} onPress={() => setDetail(null)}>
                 <Text style={s.goldBtnText}>Close</Text>
@@ -1326,6 +1781,45 @@ function AdminTalent() {
             </View>
           </View>
         )}
+      </Modal>
+
+      {/* Decline Reason Modal */}
+      <Modal visible={showDeclineModal} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', padding: 32 }}>
+          <View style={{ backgroundColor: C.card, borderRadius: 20, padding: 24 }}>
+            <Text style={{ color: C.text, fontWeight: '800', fontSize: 18, marginBottom: 8 }}>Decline Application</Text>
+            <Text style={{ color: C.sub, fontSize: 13, marginBottom: 16 }}>
+              Provide a reason for declining {declineTarget?.firstName || 'this talent'}'s application.
+            </Text>
+            <TextInput
+              style={{
+                backgroundColor: C.cardLight, borderRadius: 12, padding: 14,
+                borderWidth: 1, borderColor: C.border, color: C.text, fontSize: 14,
+                minHeight: 80, textAlignVertical: 'top',
+              }}
+              value={declineReason}
+              onChangeText={setDeclineReason}
+              placeholder="Enter decline reason..."
+              placeholderTextColor={C.muted}
+              multiline
+              autoFocus
+            />
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+              <TouchableOpacity
+                style={{ flex: 1, backgroundColor: C.red, paddingVertical: 14, borderRadius: 12, alignItems: 'center' }}
+                onPress={confirmDecline}
+              >
+                <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 15 }}>Decline</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ flex: 1, backgroundColor: C.cardLight, paddingVertical: 14, borderRadius: 12, alignItems: 'center' }}
+                onPress={() => { setShowDeclineModal(false); setDeclineTarget(null); }}
+              >
+                <Text style={{ color: C.sub, fontWeight: '600', fontSize: 15 }}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
 
       {/* Edit Modal */}
@@ -1362,6 +1856,21 @@ function AdminTalent() {
                   <TextInput style={demoEditInput} value={eArea} onChangeText={setEArea} placeholderTextColor={C.muted} />
                 </View>
               </View>
+
+              <View style={{ flexDirection: 'row', gap: 10, marginBottom: 14 }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: C.sub, fontSize: 12, marginBottom: 4 }}>Phone</Text>
+                  <TextInput style={demoEditInput} value={ePhone} onChangeText={setEPhone} placeholderTextColor={C.muted} keyboardType="phone-pad" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: C.sub, fontSize: 12, marginBottom: 4 }}>Email</Text>
+                  <TextInput style={demoEditInput} value={eEmail} onChangeText={setEEmail} placeholderTextColor={C.muted} keyboardType="email-address" />
+                </View>
+              </View>
+
+              <Text style={{ color: C.sub, fontSize: 12, marginBottom: 4 }}>Instagram</Text>
+              <TextInput style={[demoEditInput, { marginBottom: 14 }]} value={eInstagram} onChangeText={setEInstagram} placeholderTextColor={C.muted} />
+
               <Text style={{ color: C.sub, fontSize: 12, marginBottom: 4 }}>Height (cm)</Text>
               <TextInput style={[demoEditInput, { marginBottom: 14 }]} value={eHeight} onChangeText={setEHeight} keyboardType="numeric" placeholderTextColor={C.muted} />
 
@@ -1392,16 +1901,8 @@ function AdminTalent() {
                 ))}
               </View>
 
-              <Text style={{ color: C.sub, fontSize: 12, marginBottom: 4 }}>Background / About</Text>
-              <TextInput style={[demoEditInput, { minHeight: 80, textAlignVertical: 'top', marginBottom: 14 }]} value={eBg} onChangeText={setEBg} multiline placeholderTextColor={C.muted} />
-              <Text style={{ color: C.sub, fontSize: 12, marginBottom: 4 }}>Qualifications</Text>
-              <TextInput style={[demoEditInput, { minHeight: 60, textAlignVertical: 'top', marginBottom: 14 }]} value={eQualifications} onChangeText={setEQualifications} multiline placeholderTextColor={C.muted} />
-              <Text style={{ color: C.sub, fontSize: 12, marginBottom: 4 }}>Skills (comma separated)</Text>
-              <TextInput style={[demoEditInput, { minHeight: 60, textAlignVertical: 'top', marginBottom: 14 }]} value={eSkills} onChangeText={setESkills} multiline placeholderTextColor={C.muted} />
-              <Text style={{ color: C.sub, fontSize: 12, marginBottom: 4 }}>Work Experience</Text>
-              <TextInput style={[demoEditInput, { minHeight: 80, textAlignVertical: 'top', marginBottom: 14 }]} value={eWorkExp} onChangeText={setEWorkExp} multiline placeholderTextColor={C.muted} />
-              <Text style={{ color: C.sub, fontSize: 12, marginBottom: 4 }}>Availability</Text>
-              <TextInput style={[demoEditInput, { minHeight: 60, textAlignVertical: 'top', marginBottom: 14 }]} value={eAvailability} onChangeText={setEAvailability} multiline placeholderTextColor={C.muted} />
+              <Text style={{ color: C.sub, fontSize: 12, marginBottom: 4 }}>About / Bio</Text>
+              <TextInput style={[demoEditInput, { minHeight: 80, textAlignVertical: 'top', marginBottom: 14 }]} value={eBio} onChangeText={setEBio} multiline placeholderTextColor={C.muted} />
 
               <TouchableOpacity style={{ backgroundColor: C.gold, paddingVertical: 16, borderRadius: 14, alignItems: 'center', marginTop: 10 }} onPress={saveEdit}>
                 <Text style={{ color: C.black, fontWeight: '800', fontSize: 16 }}>Save Changes</Text>
@@ -2373,14 +2874,11 @@ function TalentProfile() {
   const [eRace, setERace] = useState(talent.race);
   const [eBodyType, setEBodyType] = useState(talent.bodyType);
   const [eHeight, setEHeight] = useState(String(talent.heightCm));
-  const [eBg, setEBg] = useState(talent.background);
-  const [eQualifications, setEQualifications] = useState(talent.qualifications);
-  const [eWorkExp, setEWorkExp] = useState(talent.workExperience);
-  const [eAvailability, setEAvailability] = useState(talent.availability);
+  const [eBio, setEBio] = useState(talent.bio || '');
   const [eCategories, setECategories] = useState<Set<string>>(new Set(talent.categories));
-  const [eSkills, setESkills] = useState(talent.skills.join(', '));
-  const [eTalents, setETalents] = useState(talent.talents.join(', '));
-  const [eHobbies, setEHobbies] = useState(talent.hobbies.join(', '));
+  const [ePhone, setEPhone] = useState(talent.phone || '');
+  const [eEmail, setEEmail] = useState(talent.email || '');
+  const [eInstagram, setEInstagram] = useState(talent.instagram || '');
 
   const HERO_H = width * 1.2;
   const RACE_OPTS = ['Black', 'White', 'Coloured', 'Indian', 'Asian', 'Other'];
@@ -2391,11 +2889,11 @@ function TalentProfile() {
     setEFirstName(talent.firstName); setELastName(talent.lastName);
     setECity(talent.city); setEArea(talent.area);
     setERace(talent.race); setEBodyType(talent.bodyType);
-    setEHeight(String(talent.heightCm)); setEBg(talent.background);
-    setEQualifications(talent.qualifications); setEWorkExp(talent.workExperience);
-    setEAvailability(talent.availability); setECategories(new Set(talent.categories));
-    setESkills(talent.skills.join(', ')); setETalents(talent.talents.join(', '));
-    setEHobbies(talent.hobbies.join(', '));
+    setEHeight(String(talent.heightCm)); setEBio(talent.bio || '');
+    setECategories(new Set(talent.categories));
+    setEPhone(talent.phone || '');
+    setEEmail(talent.email || '');
+    setEInstagram(talent.instagram || '');
     setEditing(true);
   };
 
@@ -2404,11 +2902,10 @@ function TalentProfile() {
       ...talent,
       firstName: eFirstName, lastName: eLastName, city: eCity, area: eArea,
       race: eRace, bodyType: eBodyType, heightCm: parseInt(eHeight) || talent.heightCm,
-      background: eBg, qualifications: eQualifications, workExperience: eWorkExp,
-      availability: eAvailability, categories: Array.from(eCategories),
-      skills: eSkills.split(',').map(s => s.trim()).filter(Boolean),
-      talents: eTalents.split(',').map(s => s.trim()).filter(Boolean),
-      hobbies: eHobbies.split(',').map(s => s.trim()).filter(Boolean),
+      background: talent.background, qualifications: talent.qualifications,
+      workExperience: talent.workExperience, availability: talent.availability,
+      categories: Array.from(eCategories),
+      skills: talent.skills, talents: talent.talents, hobbies: talent.hobbies,
     });
     setEditing(false);
     Alert.alert('Profile Updated', 'Your changes have been saved.');
@@ -2526,25 +3023,16 @@ function TalentProfile() {
 
           {/* Text Areas */}
           <Text style={{ color: C.sub, fontSize: 12, marginBottom: 4 }}>About Me / Background</Text>
-          <TextInput style={[demoEditInput, { minHeight: 80, textAlignVertical: 'top' }]} value={eBg} onChangeText={setEBg} multiline placeholderTextColor={C.muted} />
+          <TextInput style={[demoEditInput, { minHeight: 80, textAlignVertical: 'top' }]} value={eBio} onChangeText={setEBio} multiline placeholderTextColor={C.muted} />
           <View style={{ height: 14 }} />
-          <Text style={{ color: C.sub, fontSize: 12, marginBottom: 4 }}>Qualifications</Text>
-          <TextInput style={[demoEditInput, { minHeight: 60, textAlignVertical: 'top' }]} value={eQualifications} onChangeText={setEQualifications} multiline placeholderTextColor={C.muted} />
+          <Text style={{ color: C.sub, fontSize: 12, marginBottom: 4 }}>Phone</Text>
+          <TextInput style={demoEditInput} value={ePhone} onChangeText={setEPhone} placeholderTextColor={C.muted} />
           <View style={{ height: 14 }} />
-          <Text style={{ color: C.sub, fontSize: 12, marginBottom: 4 }}>Skills (comma separated)</Text>
-          <TextInput style={[demoEditInput, { minHeight: 60, textAlignVertical: 'top' }]} value={eSkills} onChangeText={setESkills} multiline placeholderTextColor={C.muted} />
+          <Text style={{ color: C.sub, fontSize: 12, marginBottom: 4 }}>Email</Text>
+          <TextInput style={demoEditInput} value={eEmail} onChangeText={setEEmail} placeholderTextColor={C.muted} />
           <View style={{ height: 14 }} />
-          <Text style={{ color: C.sub, fontSize: 12, marginBottom: 4 }}>Talents (comma separated)</Text>
-          <TextInput style={[demoEditInput, { minHeight: 60, textAlignVertical: 'top' }]} value={eTalents} onChangeText={setETalents} multiline placeholderTextColor={C.muted} />
-          <View style={{ height: 14 }} />
-          <Text style={{ color: C.sub, fontSize: 12, marginBottom: 4 }}>Hobbies (comma separated)</Text>
-          <TextInput style={[demoEditInput, { minHeight: 50, textAlignVertical: 'top' }]} value={eHobbies} onChangeText={setEHobbies} multiline placeholderTextColor={C.muted} />
-          <View style={{ height: 14 }} />
-          <Text style={{ color: C.sub, fontSize: 12, marginBottom: 4 }}>Work Experience</Text>
-          <TextInput style={[demoEditInput, { minHeight: 80, textAlignVertical: 'top' }]} value={eWorkExp} onChangeText={setEWorkExp} multiline placeholderTextColor={C.muted} />
-          <View style={{ height: 14 }} />
-          <Text style={{ color: C.sub, fontSize: 12, marginBottom: 4 }}>Availability</Text>
-          <TextInput style={[demoEditInput, { minHeight: 60, textAlignVertical: 'top' }]} value={eAvailability} onChangeText={setEAvailability} multiline placeholderTextColor={C.muted} />
+          <Text style={{ color: C.sub, fontSize: 12, marginBottom: 4 }}>Instagram</Text>
+          <TextInput style={demoEditInput} value={eInstagram} onChangeText={setEInstagram} placeholderTextColor={C.muted} />
 
           <TouchableOpacity style={{ backgroundColor: C.gold, paddingVertical: 16, borderRadius: 14, alignItems: 'center', marginTop: 24 }} onPress={saveEdit}>
             <Text style={{ color: C.black, fontWeight: '800', fontSize: 16 }}>Save Changes</Text>
@@ -2560,15 +3048,19 @@ function TalentProfile() {
       <ScrollView contentContainerStyle={{ paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
         {/* Hero Photo Slider */}
         <View style={{ height: HERO_H, position: 'relative' }}>
-          <ScrollView
-            horizontal pagingEnabled showsHorizontalScrollIndicator={false}
-            onScroll={(e: any) => setPhotoIdx(Math.round(e.nativeEvent.contentOffset.x / width))}
-            scrollEventThrottle={16}
-          >
-            {talent.photos.map((url: string, i: number) => (
-              <Image key={i} source={{ uri: url }} style={{ width, height: HERO_H, resizeMode: 'cover' }} />
-            ))}
-          </ScrollView>
+          <FlatList
+            data={talent.photos}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={(_: string, i: number) => String(i)}
+            onMomentumScrollEnd={(e: any) => setPhotoIdx(Math.round(e.nativeEvent.contentOffset.x / width))}
+            renderItem={({ item }: { item: string }) => (
+              <Image source={{ uri: item }} style={{ width, height: HERO_H, resizeMode: 'cover' }} />
+            )}
+            nestedScrollEnabled
+            getItemLayout={(_: any, index: number) => ({ length: width, offset: width * index, index })}
+          />
           {/* Gradient overlay */}
           <LinearGradient colors={['transparent', 'rgba(10,10,15,0.8)', C.bg]} style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: HERO_H * 0.5 }} />
           {/* Name & badge on overlay */}
@@ -2618,19 +3110,58 @@ function TalentProfile() {
             ))}
           </View>
 
-          {/* Photo Thumbnails Strip */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 16 }}>
+
+          {/* Photo Gallery - Add / Delete */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 16, marginBottom: 8 }}>
+            <Text style={{ color: C.text, fontWeight: '800', fontSize: 15, flex: 1 }}>Photos ({talent.photos.length}/5)</Text>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
             {talent.photos.map((url: string, i: number) => (
-              <View key={i} style={{ marginRight: 8 }}>
-                <Image source={{ uri: url }} style={{ width: 64, height: 84, borderRadius: 10, borderWidth: photoIdx === i ? 2 : 0, borderColor: C.gold }} />
+              <View key={i} style={{ width: 80, height: 105, borderRadius: 12, marginRight: 10, overflow: 'hidden', borderWidth: photoIdx === i ? 2 : 1, borderColor: photoIdx === i ? C.gold : C.border, position: 'relative' }}>
+                <TouchableOpacity activeOpacity={0.8} onPress={() => setPhotoIdx(i)}>
+                  <Image source={{ uri: url }} style={{ width: 80, height: 105 }} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ position: 'absolute', top: 3, right: 3, zIndex: 2 }}
+                  onPress={() => {
+                    if (talent.photos.length > 1) {
+                      const np = [...talent.photos];
+                      np.splice(i, 1);
+                      setTalent({ ...talent, photos: np });
+                      if (photoIdx >= np.length) setPhotoIdx(0);
+                    } else {
+                      Alert.alert('Cannot Delete', 'Must have at least one photo');
+                    }
+                  }}
+                >
+                  <View style={{ backgroundColor: '#E11D48', width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' }}>
+                    <Ionicons name="close" size={10} color="#fff" />
+                  </View>
+                </TouchableOpacity>
+                {i === 0 && (
+                  <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, backgroundColor: C.gold, paddingVertical: 1, alignItems: 'center' }}>
+                    <Text style={{ fontSize: 8, fontWeight: '800', color: '#000' }}>Main</Text>
+                  </View>
+                )}
               </View>
             ))}
+            {talent.photos.length < 5 && (
+              <TouchableOpacity
+                style={{ width: 80, height: 105, borderRadius: 12, borderWidth: 2, borderColor: C.gold + '60', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', backgroundColor: C.gold + '08' }}
+                onPress={() => {
+                  const newUrl = 'https://api.a0.dev/assets/image?text=new+model+photo+portrait&aspect=3:4&seed=' + Date.now();
+                  setTalent({ ...talent, photos: [...talent.photos, newUrl] });
+                }}
+              >
+                <Ionicons name="add-circle" size={24} color={C.gold} />
+                <Text style={{ fontSize: 10, fontWeight: '700', color: C.gold, marginTop: 2 }}>Add</Text>
+              </TouchableOpacity>
+            )}
           </ScrollView>
-
           {/* About Me */}
           <SectionHeader icon="person-circle" title="About Me" color="#A78BFA" onEdit={openEdit} />
           <View style={{ backgroundColor: C.card, borderRadius: 14, padding: 14 }}>
-            <Text style={{ color: C.text, fontSize: 14, lineHeight: 21 }}>{talent.background}</Text>
+            <Text style={{ color: C.text, fontSize: 14, lineHeight: 21 }}>{talent.bio || talent.background}</Text>
           </View>
 
           {/* Qualifications */}
@@ -2753,8 +3284,7 @@ function TalentActivity() {
 function AdminTabs() {
   return (
     <Tab.Navigator screenOptions={{ headerShown: false, tabBarStyle: { backgroundColor: C.card, borderTopColor: C.border }, tabBarActiveTintColor: C.gold, tabBarInactiveTintColor: C.muted }}>
-      <Tab.Screen name="Dashboard" component={AdminDash} options={{ tabBarIcon: ({ color, size }: any) => <Ionicons name="grid" size={size} color={color} /> }} />
-      <Tab.Screen name="Talent" component={AdminTalent} options={{ tabBarIcon: ({ color, size }: any) => <Ionicons name="people" size={size} color={color} /> }} />
+      <Tab.Screen name="Members" component={AdminDash} options={{ tabBarIcon: ({ color, size }: any) => <Ionicons name="people" size={size} color={color} /> }} />
       <Tab.Screen name="Bookings" component={AdminBookings} options={{ tabBarIcon: ({ color, size }: any) => <Ionicons name="calendar" size={size} color={color} /> }} />
       <Tab.Screen name="Gigs" component={AdminGigs} options={{ tabBarIcon: ({ color, size }: any) => <Ionicons name="megaphone" size={size} color={color} /> }} />
     </Tab.Navigator>
@@ -2775,10 +3305,10 @@ function ClientTabs() {
 function TalentTabs() {
   return (
     <Tab.Navigator screenOptions={{ headerShown: false, tabBarStyle: { backgroundColor: C.card, borderTopColor: C.border }, tabBarActiveTintColor: C.gold, tabBarInactiveTintColor: C.muted }}>
-      <Tab.Screen name="Profile" component={TalentProfile} options={{ tabBarIcon: ({ color, size }: any) => <Ionicons name="person" size={size} color={color} /> }} />
       <Tab.Screen name="Gigs" component={TalentGigs} options={{ tabBarIcon: ({ color, size }: any) => <Ionicons name="briefcase" size={size} color={color} /> }} />
       <Tab.Screen name="Activity" component={TalentActivity} options={{ tabBarIcon: ({ color, size }: any) => <Ionicons name="pulse" size={size} color={color} /> }} />
       <Tab.Screen name="Outfits" component={DemoOutfitsScreen} options={{ tabBarIcon: ({ color, size }: any) => <Ionicons name="shirt-outline" size={size} color={color} /> }} />
+      <Tab.Screen name="Profile" component={TalentProfile} options={{ tabBarIcon: ({ color, size }: any) => <Ionicons name="person" size={size} color={color} /> }} />
     </Tab.Navigator>
   );
 }
@@ -2789,6 +3319,27 @@ type DemoRole = 'admin' | 'client' | 'talent' | null;
 export default function DemoApp({ onExit }: { onExit: () => void }) {
   const [role, setRole] = useState<DemoRole>(null);
   const [showSwitcher, setShowSwitcher] = useState(false);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pin, setPin] = useState('');
+  const [pinError, setPinError] = useState('');
+
+  const handleAdminAccess = () => {
+    setShowPinModal(true);
+    setPin('');
+    setPinError('');
+  };
+
+  const verifyPin = () => {
+    if (pin === '2025') {
+      setShowPinModal(false);
+      setPin('');
+      setPinError('');
+      setRole('admin');
+    } else {
+      setPinError('Incorrect PIN. Please try again.');
+      setPin('');
+    }
+  };
 
   if (!role) {
     return (
@@ -2804,18 +3355,69 @@ export default function DemoApp({ onExit }: { onExit: () => void }) {
           { key: 'client' as const, icon: 'business' as const, label: 'Client', desc: 'Search talent & book' },
           { key: 'talent' as const, icon: 'person' as const, label: 'Talent', desc: 'Profile & gigs' },
         ]).map(r => (
-          <TouchableOpacity key={r.key} style={s.roleCard} onPress={() => setRole(r.key)}>
+          <TouchableOpacity key={r.key} style={s.roleCard} onPress={() => r.key === 'admin' ? handleAdminAccess() : setRole(r.key)}>
             <View style={s.roleIcon}><Ionicons name={r.icon} size={24} color={C.gold} /></View>
             <View style={{ flex: 1 }}>
               <Text style={{ color: C.text, fontWeight: '700', fontSize: 16 }}>{r.label}</Text>
               <Text style={{ color: C.sub, fontSize: 13, marginTop: 2 }}>{r.desc}</Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={C.muted} />
+            {r.key === 'admin' ? (
+              <Ionicons name="lock-closed" size={18} color={C.gold} />
+            ) : (
+              <Ionicons name="chevron-forward" size={20} color={C.muted} />
+            )}
           </TouchableOpacity>
         ))}
         <TouchableOpacity style={s.exitBtn} onPress={onExit}>
           <Text style={{ color: C.sub, fontSize: 14 }}>Exit Demo</Text>
         </TouchableOpacity>
+
+        {/* PIN Modal */}
+        <Modal visible={showPinModal} transparent animationType="fade">
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', padding: 32 }}>
+            <View style={{ backgroundColor: C.card, borderRadius: 20, padding: 24, alignItems: 'center' }}>
+              <View style={{ width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(201,168,76,0.12)', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+                <Ionicons name="lock-closed" size={24} color={C.gold} />
+              </View>
+              <Text style={{ color: C.text, fontWeight: '800', fontSize: 20, marginBottom: 6 }}>Admin Access</Text>
+              <Text style={{ color: C.sub, fontSize: 13, textAlign: 'center', marginBottom: 20 }}>Enter the admin PIN to access the dashboard</Text>
+              <TextInput
+                style={{
+                  width: '100%', backgroundColor: C.cardLight, borderRadius: 12,
+                  padding: 16, borderWidth: 1, borderColor: pinError ? C.red : C.border,
+                  color: C.text, fontSize: 22, fontWeight: '700', textAlign: 'center',
+                  letterSpacing: 12,
+                }}
+                value={pin}
+                onChangeText={(t) => { setPin(t); setPinError(''); }}
+                placeholder="----"
+                placeholderTextColor={C.muted}
+                keyboardType="number-pad"
+                maxLength={4}
+                secureTextEntry
+                autoFocus
+                onSubmitEditing={verifyPin}
+              />
+              {pinError ? (
+                <Text style={{ color: C.red, fontSize: 13, marginTop: 10, fontWeight: '600' }}>{pinError}</Text>
+              ) : null}
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 20, width: '100%' }}>
+                <TouchableOpacity
+                  style={{ flex: 1, backgroundColor: C.gold, paddingVertical: 14, borderRadius: 12, alignItems: 'center' }}
+                  onPress={verifyPin}
+                >
+                  <Text style={{ color: C.black, fontWeight: '700', fontSize: 15 }}>Enter</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ flex: 1, backgroundColor: C.cardLight, paddingVertical: 14, borderRadius: 12, alignItems: 'center' }}
+                  onPress={() => { setShowPinModal(false); setPin(''); setPinError(''); }}
+                >
+                  <Text style={{ color: C.sub, fontWeight: '600', fontSize: 15 }}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </SafeAreaView>
     );
   }
@@ -2835,8 +3437,19 @@ export default function DemoApp({ onExit }: { onExit: () => void }) {
           <View style={s.switcherBox}>
             <Text style={{ color: C.text, fontWeight: '700', fontSize: 16, marginBottom: 12 }}>Switch Role</Text>
             {(['admin','client','talent'] as const).map(r => (
-              <TouchableOpacity key={r} style={[s.switcherItem, role===r && { backgroundColor: 'rgba(201,168,76,0.15)' }]} onPress={() => { setRole(r); setShowSwitcher(false); }}>
-                <Text style={{ color: role===r ? C.gold : C.text, fontWeight: '600', fontSize: 15, textTransform: 'capitalize' }}>{r}</Text>
+              <TouchableOpacity key={r} style={[s.switcherItem, role===r && { backgroundColor: 'rgba(201,168,76,0.15)' }]} onPress={() => {
+                if (r === 'admin' && role !== 'admin') {
+                  setShowSwitcher(false);
+                  handleAdminAccess();
+                } else {
+                  setRole(r);
+                  setShowSwitcher(false);
+                }
+              }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <Text style={{ color: role===r ? C.gold : C.text, fontWeight: '600', fontSize: 15, textTransform: 'capitalize' }}>{r}</Text>
+                  {r === 'admin' && role !== 'admin' && <Ionicons name="lock-closed" size={14} color={C.muted} />}
+                </View>
                 {role===r && <Ionicons name="checkmark" size={18} color={C.gold} />}
               </TouchableOpacity>
             ))}

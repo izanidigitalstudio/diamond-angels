@@ -1,20 +1,16 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, FlatList, Image,
-  ActivityIndicator, Modal, ScrollView, Alert, TextInput,
-  Dimensions, NativeScrollEvent, NativeSyntheticEvent,
+  ActivityIndicator, ScrollView, Alert, Modal, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRoute } from '@react-navigation/native';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
 import { theme } from '../../lib/theme';
-import { SA_CITIES, RACE_OPTIONS, BODY_TYPES, CATEGORIES } from '../../lib/constants';
 import { DEMO_TALENT } from '../../lib/demoTalent';
-
-const { width: SCREEN_W } = Dimensions.get('window');
-const SLIDE_W = SCREEN_W - 48;
+import ProfileReviewModal from '../../components/ProfileReviewModal';
 
 const IMG_BASE = 'https://api.a0.dev/assets/image';
 function generatePhotosForProfile(p: any): string[] {
@@ -31,247 +27,137 @@ function generatePhotosForProfile(p: any): string[] {
     `${IMG_BASE}?text=${encodeURIComponent(base + ' portrait elegant studio')}&aspect=3:4&seed=${seed}`,
     `${IMG_BASE}?text=${encodeURIComponent(base + ' full body')}&aspect=3:4&seed=${seed + 1}`,
     `${IMG_BASE}?text=${encodeURIComponent(base + ' lifestyle')}&aspect=3:4&seed=${seed + 2}`,
-    `${IMG_BASE}?text=${encodeURIComponent(base + ' evening look')}&aspect=3:4&seed=${seed + 3}`,
-    `${IMG_BASE}?text=${encodeURIComponent(base + ' candid smile')}&aspect=3:4&seed=${seed + 4}`,
   ];
 }
 
-function PhotoSlider({ photos }: { photos: string[] }) {
-  const [activeIdx, setActiveIdx] = useState(0);
-  const validPhotos = photos.filter(Boolean);
-  if (validPhotos.length === 0) return (
-    <View style={[ps.slide, { backgroundColor: theme.colors.cardLight, alignItems: 'center', justifyContent: 'center' }]}>
-      <Ionicons name="person" size={48} color={theme.colors.textMuted} />
-    </View>
-  );
-  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const idx = Math.round(e.nativeEvent.contentOffset.x / SLIDE_W);
-    setActiveIdx(idx);
+function getProfileCompleteness(p: any): { score: number; missing: string[] } {
+  const missing: string[] = [];
+  if (!p.firstName || !p.lastName) missing.push('Name');
+  if (!p.phone) missing.push('Phone');
+  if (!p.city) missing.push('City');
+  if (!p.race) missing.push('Race');
+  if (!p.bodyType) missing.push('Body Type');
+  if (!p.heightCm) missing.push('Height');
+  if (!p.bio) missing.push('Bio');
+  if (!p.categories?.length) missing.push('Categories');
+  const photoCount = (p.photoUrls || []).filter(Boolean).length;
+  if (photoCount === 0) missing.push('Photos');
+  if (!p.email) missing.push('Email');
+  if (!p.instagram) missing.push('Instagram');
+  if (!p.nokFullName) missing.push('Next of Kin');
+  const total = 13;
+  const filled = total - missing.length;
+  return { score: Math.round((filled / total) * 100), missing };
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const config: Record<string, { bg: string; color: string; icon: string }> = {
+    pending: { bg: 'rgba(245,158,11,0.15)', color: theme.colors.warning, icon: 'time-outline' },
+    approved: { bg: 'rgba(16,185,129,0.15)', color: theme.colors.success, icon: 'checkmark-circle-outline' },
+    declined: { bg: 'rgba(239,68,68,0.15)', color: theme.colors.error, icon: 'close-circle-outline' },
+    archived: { bg: 'rgba(107,114,128,0.15)', color: '#6B7280', icon: 'archive-outline' },
   };
+  const c = config[status] || config.pending;
   return (
-    <View>
-      <ScrollView
-        horizontal pagingEnabled showsHorizontalScrollIndicator={false}
-        onScroll={onScroll} scrollEventThrottle={16}
-        style={{ marginBottom: 8 }}
-      >
-        {validPhotos.map((url, i) => (
-          <Image key={i} source={{ uri: url }} style={ps.slide} />
-        ))}
-      </ScrollView>
-      {validPhotos.length > 1 && (
-        <View style={ps.dots}>
-          {validPhotos.map((_, i) => (
-            <View key={i} style={[ps.dot, activeIdx === i && ps.dotActive]} />
-          ))}
-        </View>
-      )}
-      <Text style={ps.counter}>{activeIdx + 1} / {validPhotos.length}</Text>
+    <View style={[sbSt.badge, { backgroundColor: c.bg }]}>
+      <Ionicons name={c.icon as any} size={12} color={c.color} />
+      <Text style={[sbSt.text, { color: c.color }]}>{status.charAt(0).toUpperCase() + status.slice(1)}</Text>
     </View>
   );
 }
-
-const ps = StyleSheet.create({
-  slide: { width: SLIDE_W, height: SLIDE_W * 1.25, borderRadius: 14 },
-  dots: { flexDirection: 'row', justifyContent: 'center', gap: 6, marginTop: 4 },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: theme.colors.border },
-  dotActive: { backgroundColor: theme.colors.primary, width: 20 },
-  counter: { color: theme.colors.textMuted, fontSize: 12, textAlign: 'center', marginTop: 4 },
+const sbSt = StyleSheet.create({
+  badge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  text: { fontSize: 11, fontWeight: '700' },
 });
 
 export default function TalentManagementScreen() {
-  const [statusFilter, setStatusFilter] = useState('approved');
-  const [showDetail, setShowDetail] = useState<any>(null);
-  const [declineReason, setDeclineReason] = useState('');
-  const [showDeclineModal, setShowDeclineModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editData, setEditData] = useState<any>({});
-  const [uploading, setUploading] = useState(false);
+  const route = useRoute<any>();
+  const [statusFilter, setStatusFilter] = useState('pending');
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
+  const [sortMode, setSortMode] = useState(false);
+  const [reordering, setReordering] = useState(false);
+  const [positionModal, setPositionModal] = useState<{ index: number; name: string } | null>(null);
+  const [positionInput, setPositionInput] = useState('');
 
   const profiles = useQuery(api.talent.listAllProfiles, statusFilter ? { status: statusFilter } : {});
-  const approveProfile = useMutation(api.talent.approveProfile);
-  const declineProfile = useMutation(api.talent.declineProfile);
-  const adminUpdate = useMutation(api.talent.adminUpdateProfile);
-  const adminDelete = useMutation(api.talent.adminDeleteProfile);
-  const adminAddPhoto = useMutation(api.talent.adminAddPhoto);
-  const adminRemovePhoto = useMutation(api.talent.adminRemovePhoto);
-  const generateUploadUrl = useMutation(api.files.generateUploadUrl);
+  const pendingProfiles = useQuery(api.talent.listAllProfiles, { status: 'pending' });
+  const approvedProfiles = useQuery(api.talent.listAllProfiles, { status: 'approved' });
+  const declinedProfiles = useQuery(api.talent.listAllProfiles, { status: 'declined' });
+  const archivedProfiles = useQuery(api.talent.listAllProfiles, { status: 'archived' });
 
-  // Use demo data when DB is empty
-  const isUsingDemo = profiles !== undefined && profiles.length === 0;
+  const adminUpdate = useMutation(api.talent.adminUpdateProfile);
+
+  React.useEffect(() => {
+    const params = route.params as any;
+    if (params?.filterStatus) {
+      setStatusFilter(params.filterStatus);
+    }
+  }, [route.params]);
+
+  const counts = {
+    pending: pendingProfiles?.length ?? 0,
+    approved: approvedProfiles?.length ?? 0,
+    declined: declinedProfiles?.length ?? 0,
+    archived: archivedProfiles?.length ?? 0,
+  };
+
   const displayProfiles = React.useMemo(() => {
-    if (profiles && profiles.length > 0) {
+    if (profiles !== undefined && profiles.length > 0) {
       return profiles.map((p: any) => {
         const existingPhotos = [...(p.photoUrls || [])].filter(Boolean);
         const photos = existingPhotos.length > 0 ? existingPhotos : generatePhotosForProfile(p);
         return { ...p, photoUrls: photos };
       });
     }
-    // Fall back to demo data - filter by status if needed
-    const demoProfiles = DEMO_TALENT.filter((t: any) => {
-      if (statusFilter === 'pending') return false; // no pending in demo
-      if (statusFilter === 'declined') return false; // no declined in demo
-      return true; // approved
-    });
-    return demoProfiles.map((t: any) => ({
-      ...t,
-      _id: t.id,
-      photoUrls: t.photos || [],
-      bio: t.background || '',
-      phone: '07X XXX XXXX',
-    }));
+    if (profiles === undefined && statusFilter === 'approved') {
+      return DEMO_TALENT.map((t: any) => ({
+        ...t,
+        _id: t.id,
+        photoUrls: t.photos || [],
+        bio: t.background || '',
+        phone: '07X XXX XXXX',
+      }));
+    }
+    return [];
   }, [profiles, statusFilter]);
 
-  const handleApprove = async (profileId: any) => {
-    try {
-      await approveProfile({ profileId });
-      Alert.alert('Approved', 'Talent profile has been approved');
-      setShowDetail(null);
-    } catch (e: any) { Alert.alert('Error', e.message); }
-  };
+  const selectedProfile = React.useMemo(() => {
+    if (!selectedProfileId) return null;
+    return displayProfiles.find((p: any) => p._id === selectedProfileId) || null;
+  }, [selectedProfileId, displayProfiles]);
 
-  const handleDecline = async () => {
-    if (!showDetail || !declineReason) {
-      Alert.alert('Required', 'Please provide a reason for declining');
+  const handleMoveToPosition = async (fromIndex: number, toPosition: number) => {
+    if (toPosition < 1 || toPosition > displayProfiles.length) {
+      Alert.alert('Invalid', `Enter a number between 1 and ${displayProfiles.length}`);
       return;
     }
+    setReordering(true);
     try {
-      await declineProfile({ profileId: showDetail._id, reason: declineReason });
-      Alert.alert('Declined', 'Talent profile has been declined');
-      setShowDetail(null);
-      setShowDeclineModal(false);
-      setDeclineReason('');
-    } catch (e: any) { Alert.alert('Error', e.message); }
+      const reordered = [...displayProfiles];
+      const [moved] = reordered.splice(fromIndex, 1);
+      reordered.splice(toPosition - 1, 0, moved);
+      for (let i = 0; i < reordered.length; i++) {
+        await adminUpdate({ profileId: reordered[i]._id, displayOrder: (i + 1) * 10 });
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to reorder');
+    } finally {
+      setReordering(false);
+    }
   };
 
-  const handleDelete = (profileId: any, name: string) => {
-    Alert.alert('Delete Profile', `Are you sure you want to permanently delete ${name}'s profile? This cannot be undone.`, [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Delete', style: 'destructive', onPress: async () => {
-          try {
-            await adminDelete({ profileId });
-            Alert.alert('Deleted', 'Profile has been permanently deleted');
-            setShowDetail(null);
-          } catch (e: any) { Alert.alert('Error', e.message); }
-        }
-      },
-    ]);
-  };
-
-  const openEdit = (profile: any) => {
-    setEditData({
-      profileId: profile._id,
-      firstName: profile.firstName,
-      lastName: profile.lastName,
-      phone: profile.phone,
-      city: profile.city,
-      area: profile.area,
-      race: profile.race,
-      bodyType: profile.bodyType,
-      heightCm: String(profile.heightCm || ''),
-      bio: profile.bio,
-      categories: [...(profile.categories || [])],
-      instagram: profile.instagram || '',
-      email: profile.email || '',
-      altPhone: profile.altPhone || '',
-      workplace: profile.workplace || '',
-      jobTitle: profile.jobTitle || '',
-      tiktok: profile.tiktok || '',
-      twitter: profile.twitter || '',
-      facebook: profile.facebook || '',
-      addressStreet: profile.addressStreet || '',
-      addressCity: profile.addressCity || '',
-      addressState: profile.addressState || '',
-      addressPostalCode: profile.addressPostalCode || '',
-      addressCountry: profile.addressCountry || '',
-      nokFullName: profile.nokFullName || '',
-      nokRelationship: profile.nokRelationship || '',
-      nokPhone: profile.nokPhone || '',
-      nokEmail: profile.nokEmail || '',
-      nokAddress: profile.nokAddress || '',
-    });
-    setShowEditModal(true);
-  };
-
-  const handleSaveEdit = async () => {
+  const handleAutoAssign = async () => {
+    setReordering(true);
     try {
-      await adminUpdate({
-        profileId: editData.profileId,
-        firstName: editData.firstName,
-        lastName: editData.lastName,
-        phone: editData.phone,
-        city: editData.city,
-        area: editData.area,
-        race: editData.race,
-        bodyType: editData.bodyType,
-        heightCm: parseInt(editData.heightCm) || 170,
-        bio: editData.bio,
-        categories: editData.categories,
-        instagram: editData.instagram || undefined,
-        email: editData.email || undefined,
-        altPhone: editData.altPhone || undefined,
-        workplace: editData.workplace || undefined,
-        jobTitle: editData.jobTitle || undefined,
-        tiktok: editData.tiktok || undefined,
-        twitter: editData.twitter || undefined,
-        facebook: editData.facebook || undefined,
-        addressStreet: editData.addressStreet || undefined,
-        addressCity: editData.addressCity || undefined,
-        addressState: editData.addressState || undefined,
-        addressPostalCode: editData.addressPostalCode || undefined,
-        addressCountry: editData.addressCountry || undefined,
-        nokFullName: editData.nokFullName || undefined,
-        nokRelationship: editData.nokRelationship || undefined,
-        nokPhone: editData.nokPhone || undefined,
-        nokEmail: editData.nokEmail || undefined,
-        nokAddress: editData.nokAddress || undefined,
-      });
-      Alert.alert('Saved', 'Profile updated successfully');
-      setShowEditModal(false);
-      setShowDetail(null);
-    } catch (e: any) { Alert.alert('Error', e.message); }
-  };
-
-  const handleAddPhoto = async (profileId: any) => {
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [3, 4],
-        quality: 0.8,
-      });
-      if (result.canceled) return;
-      setUploading(true);
-      const uploadUrl = await generateUploadUrl();
-      const response = await fetch(result.assets[0].uri);
-      const blob = await response.blob();
-      const uploadResult = await fetch(uploadUrl, { method: 'POST', body: blob, headers: { 'Content-Type': blob.type || 'image/jpeg' } });
-      const { storageId } = await uploadResult.json();
-      await adminAddPhoto({ profileId, storageId });
-      Alert.alert('Added', 'Photo added successfully');
-    } catch (e: any) { Alert.alert('Error', e.message); }
-    finally { setUploading(false); }
-  };
-
-  const handleRemovePhoto = (profileId: any, index: number) => {
-    Alert.alert('Remove Photo', 'Are you sure you want to remove this photo?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: async () => {
-        try {
-          await adminRemovePhoto({ profileId, photoIndex: index });
-        } catch (e: any) { Alert.alert('Error', e.message); }
-      }},
-    ]);
-  };
-
-  const toggleCategory = (cat: string) => {
-    setEditData((prev: any) => ({
-      ...prev,
-      categories: prev.categories.includes(cat)
-        ? prev.categories.filter((c: string) => c !== cat)
-        : [...prev.categories, cat],
-    }));
+      for (let i = 0; i < displayProfiles.length; i++) {
+        await adminUpdate({ profileId: displayProfiles[i]._id, displayOrder: (i + 1) * 10 });
+      }
+      Alert.alert('Done', `Assigned display order to ${displayProfiles.length} profiles`);
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to auto-assign order');
+    } finally {
+      setReordering(false);
+    }
   };
 
   if (profiles === undefined) return (
@@ -283,20 +169,83 @@ export default function TalentManagementScreen() {
   return (
     <View style={st.container}>
       <SafeAreaView style={st.safe} edges={['top']}>
-        <Text style={st.title}>Talent</Text>
-        <View style={st.filterRow}>
-          {['pending', 'approved', 'declined'].map((s) => (
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, marginTop: 16, marginBottom: 12 }}>
+          <Text style={[st.title, { marginTop: 0, marginBottom: 0, paddingHorizontal: 0 }]}>Talent</Text>
+          {statusFilter === 'approved' && (
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {sortMode && (
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: 'rgba(201,168,76,0.15)', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 }}
+                  onPress={handleAutoAssign}
+                >
+                  <Ionicons name="refresh" size={14} color={theme.colors.primary} />
+                  <Text style={{ color: theme.colors.primary, fontSize: 11, fontWeight: '600' }}>Auto-Number</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row', alignItems: 'center', gap: 4,
+                  backgroundColor: sortMode ? theme.colors.primary : theme.colors.card,
+                  paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8,
+                  borderWidth: 1, borderColor: theme.colors.primary,
+                }}
+                onPress={() => {
+                  if (!sortMode) {
+                    const hasNoOrder = displayProfiles.some((p: any) => p.displayOrder === undefined || p.displayOrder === null);
+                    if (hasNoOrder) {
+                      handleAutoAssign();
+                    }
+                  }
+                  setSortMode(!sortMode);
+                }}
+              >
+                <Ionicons name={sortMode ? "checkmark" : "swap-vertical"} size={14} color={sortMode ? theme.colors.black : theme.colors.primary} />
+                <Text style={{ color: sortMode ? theme.colors.black : theme.colors.primary, fontSize: 12, fontWeight: '700' }}>
+                  {sortMode ? 'Done' : 'Sort'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexShrink: 0 }} contentContainerStyle={st.filterRow}>
+          {([
+            { key: 'pending', label: 'Pending', count: counts.pending, color: theme.colors.warning },
+            { key: 'approved', label: 'Approved', count: counts.approved, color: theme.colors.success },
+            { key: 'declined', label: 'Declined', count: counts.declined, color: theme.colors.error },
+            { key: 'archived', label: 'Archived', count: counts.archived, color: '#6B7280' },
+          ] as const).map((s) => (
             <TouchableOpacity
-              key={s}
-              style={[st.filterChip, statusFilter === s && st.filterChipActive]}
-              onPress={() => setStatusFilter(s)}
+              key={s.key}
+              style={[st.filterChip, statusFilter === s.key && st.filterChipActive]}
+              onPress={() => { setStatusFilter(s.key); setSortMode(false); }}
             >
-              <Text style={[st.filterText, statusFilter === s && st.filterTextActive]}>
-                {s.charAt(0).toUpperCase() + s.slice(1)} ({statusFilter === s ? displayProfiles.length : '–'})
+              <View style={[st.filterDot, { backgroundColor: statusFilter === s.key ? s.color : theme.colors.textMuted }]} />
+              <Text style={[st.filterText, statusFilter === s.key && st.filterTextActive]}>
+                {s.label}
               </Text>
+              <View style={[st.filterCount, { backgroundColor: statusFilter === s.key ? s.color + '30' : theme.colors.cardLight }]}>
+                <Text style={[st.filterCountText, { color: statusFilter === s.key ? s.color : theme.colors.textMuted }]}>
+                  {s.count}
+                </Text>
+              </View>
             </TouchableOpacity>
           ))}
-        </View>
+        </ScrollView>
+
+        {sortMode && statusFilter === 'approved' && (
+          <View style={{ paddingHorizontal: 20, paddingBottom: 8 }}>
+            <Text style={{ color: theme.colors.textSecondary, fontSize: 12, fontStyle: 'italic' }}>
+              Tap a talent card to change their position.
+            </Text>
+            {reordering && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                <ActivityIndicator size="small" color={theme.colors.primary} />
+                <Text style={{ color: theme.colors.primary, fontSize: 12 }}>Updating order...</Text>
+              </View>
+            )}
+          </View>
+        )}
 
         <FlatList
           data={displayProfiles}
@@ -306,363 +255,122 @@ export default function TalentManagementScreen() {
             <View style={st.empty}>
               <Ionicons name="people-outline" size={48} color={theme.colors.textMuted} />
               <Text style={st.emptyText}>No {statusFilter} profiles</Text>
+              <Text style={st.emptySubtext}>
+                {statusFilter === 'pending' ? 'New applications will appear here' :
+                 statusFilter === 'approved' ? 'Approved talent will appear here' :
+                 statusFilter === 'archived' ? 'Archived talent will appear here' :
+                 'Declined applications will appear here'}
+              </Text>
             </View>
           }
-          renderItem={({ item }: any) => (
-            <TouchableOpacity style={st.card} onPress={() => setShowDetail(item)} activeOpacity={0.8}>
-              {item.photoUrls?.[0] ? (
-                <Image source={{ uri: item.photoUrls[0] }} style={st.cardPhoto} />
-              ) : (
-                <View style={[st.cardPhoto, { backgroundColor: theme.colors.cardLight, alignItems: 'center', justifyContent: 'center' }]}>
-                  <Ionicons name="person" size={24} color={theme.colors.textMuted} />
+          renderItem={({ item, index }: any) => {
+            const completeness = getProfileCompleteness(item);
+            const isApprovedSort = sortMode && statusFilter === 'approved';
+
+            return (
+              <TouchableOpacity
+                style={[st.card, isApprovedSort && { borderColor: theme.colors.primary + '40' }]}
+                onPress={() => {
+                  if (isApprovedSort) {
+                    setPositionModal({ index, name: `${item.firstName} ${item.lastName}` });
+                    setPositionInput(String(index + 1));
+                  } else {
+                    setSelectedProfileId(item._id);
+                  }
+                }}
+                activeOpacity={0.7}
+                disabled={reordering}
+              >
+                {isApprovedSort && (
+                  <View style={st.orderBadge}>
+                    <Text style={st.orderBadgeText}>{index + 1}</Text>
+                  </View>
+                )}
+                {item.photoUrls?.[0] ? (
+                  <Image source={{ uri: item.photoUrls[0] }} style={st.cardPhoto} />
+                ) : (
+                  <View style={[st.cardPhoto, { backgroundColor: theme.colors.cardLight, alignItems: 'center', justifyContent: 'center' }]}>
+                    <Ionicons name="person" size={24} color={theme.colors.textMuted} />
+                  </View>
+                )}
+                <View style={st.cardInfo}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                    <Text style={st.cardName} numberOfLines={1}>{item.firstName} {item.lastName}</Text>
+                    <StatusBadge status={item.status || statusFilter} />
+                  </View>
+                  <Text style={st.cardSub}>{item.city} � {item.heightCm}cm � {item.race}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, flex: 1 }}>
+                      {item.categories?.slice(0, 2).map((c: string) => (
+                        <View key={c} style={st.tag}><Text style={st.tagText}>{c}</Text></View>
+                      ))}
+                    </View>
+                    {completeness.score < 100 && !isApprovedSort && (
+                      <View style={st.completenessChip}>
+                        <Ionicons name="alert-circle" size={10} color={theme.colors.warning} />
+                        <Text style={st.completenessText}>{completeness.score}%</Text>
+                      </View>
+                    )}
+                  </View>
                 </View>
-              )}
-              <View style={st.cardInfo}>
-                <Text style={st.cardName}>{item.firstName} {item.lastName}</Text>
-                <Text style={st.cardSub}>{item.city} · {item.heightCm}cm · {item.race}</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
-                  {item.categories.slice(0, 3).map((c: string) => (
-                    <View key={c} style={st.tag}><Text style={st.tagText}>{c}</Text></View>
-                  ))}
-                </View>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
-            </TouchableOpacity>
-          )}
+                {isApprovedSort ? (
+                  <Ionicons name="create-outline" size={18} color={theme.colors.primary} />
+                ) : (
+                  <Ionicons name="chevron-forward" size={18} color={theme.colors.textMuted} />
+                )}
+              </TouchableOpacity>
+            );
+          }}
         />
 
-        {/* ===== DETAIL MODAL ===== */}
-        <Modal visible={!!showDetail} animationType="slide" transparent>
+        {/* Position Input Modal */}
+        <Modal visible={!!positionModal} transparent animationType="fade">
           <View style={st.modalOverlay}>
-            <View style={st.modalContent}>
-              <View style={st.modalHeader}>
-                <Text style={st.modalTitle}>{showDetail?.firstName} {showDetail?.lastName}</Text>
-                <TouchableOpacity onPress={() => setShowDetail(null)}>
-                  <Ionicons name="close" size={24} color={theme.colors.text} />
-                </TouchableOpacity>
-              </View>
-              <ScrollView showsVerticalScrollIndicator={false}>
-                {/* Photo Slideshow */}
-                {showDetail?.photoUrls && <PhotoSlider photos={showDetail.photoUrls.filter(Boolean)} />}
-
-                {/* Photo Management - only for DB profiles */}
-                {!isUsingDemo && showDetail?.photoUrls && (
-                  <View style={st.photoMgmt}>
-                    <Text style={st.sectionLabel}>Photos ({showDetail?.photoUrls?.filter(Boolean).length || 0}/5)</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
-                      {showDetail?.photoUrls?.map((url: string, i: number) => url && (
-                        <View key={i} style={st.photoThumbWrap}>
-                          <Image source={{ uri: url }} style={st.photoThumb} />
-                          <TouchableOpacity style={st.photoRemoveBtn} onPress={() => handleRemovePhoto(showDetail._id, i)}>
-                            <Ionicons name="close-circle" size={22} color={theme.colors.error} />
-                          </TouchableOpacity>
-                        </View>
-                      ))}
-                      {(showDetail?.photoUrls?.filter(Boolean).length || 0) < 5 && (
-                        <TouchableOpacity style={st.photoAddBtn} onPress={() => handleAddPhoto(showDetail._id)}>
-                          {uploading ? <ActivityIndicator color={theme.colors.primary} /> : (
-                            <>
-                              <Ionicons name="add" size={24} color={theme.colors.primary} />
-                              <Text style={{ color: theme.colors.primary, fontSize: 10, marginTop: 2 }}>Add</Text>
-                            </>
-                          )}
-                        </TouchableOpacity>
-                      )}
-                    </ScrollView>
-                  </View>
-                )}
-
-                {/* Info Grid */}
-                <View style={st.detailGrid}>
-                  <View style={st.detailItem}><Text style={st.detailLabel}>City</Text><Text style={st.detailValue}>{showDetail?.city}</Text></View>
-                  <View style={st.detailItem}><Text style={st.detailLabel}>Area</Text><Text style={st.detailValue}>{showDetail?.area}</Text></View>
-                  <View style={st.detailItem}><Text style={st.detailLabel}>Height</Text><Text style={st.detailValue}>{showDetail?.heightCm}cm</Text></View>
-                  <View style={st.detailItem}><Text style={st.detailLabel}>Race</Text><Text style={st.detailValue}>{showDetail?.race}</Text></View>
-                  <View style={st.detailItem}><Text style={st.detailLabel}>Body Type</Text><Text style={st.detailValue}>{showDetail?.bodyType}</Text></View>
-                  <View style={st.detailItem}><Text style={st.detailLabel}>Phone</Text><Text style={st.detailValue}>{showDetail?.phone}</Text></View>
-                  {showDetail?.instagram && <View style={st.detailItem}><Text style={st.detailLabel}>Instagram</Text><Text style={[st.detailValue, { color: theme.colors.primary }]}>@{showDetail.instagram}</Text></View>}
-                </View>
-
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-                  {showDetail?.categories?.map((c: string) => (
-                    <View key={c} style={st.tag}><Text style={st.tagText}>{c}</Text></View>
-                  ))}
-                </View>
-
-                <Text style={st.sectionLabel}>Bio</Text>
-                <Text style={st.bioText}>{showDetail?.bio || showDetail?.background}</Text>
-
-                {/* Contact Details */}
-                {(showDetail?.email || showDetail?.altPhone) && (
-                  <>
-                    <Text style={st.sectionLabel}>Contact Details</Text>
-                    <View style={st.detailGrid}>
-                      {showDetail?.email && <View style={st.detailItem}><Text style={st.detailLabel}>Email</Text><Text style={st.detailValue}>{showDetail.email}</Text></View>}
-                      {showDetail?.altPhone && <View style={st.detailItem}><Text style={st.detailLabel}>Alt Phone</Text><Text style={st.detailValue}>{showDetail.altPhone}</Text></View>}
-                    </View>
-                  </>
-                )}
-
-                {/* Social Media */}
-                {(showDetail?.tiktok || showDetail?.twitter || showDetail?.facebook) && (
-                  <>
-                    <Text style={st.sectionLabel}>Social Media</Text>
-                    <View style={st.detailGrid}>
-                      {showDetail?.tiktok && <View style={st.detailItem}><Text style={st.detailLabel}>TikTok</Text><Text style={[st.detailValue, { color: '#00F2EA' }]}>@{showDetail.tiktok}</Text></View>}
-                      {showDetail?.twitter && <View style={st.detailItem}><Text style={st.detailLabel}>Twitter/X</Text><Text style={[st.detailValue, { color: '#1DA1F2' }]}>@{showDetail.twitter}</Text></View>}
-                      {showDetail?.facebook && <View style={st.detailItem}><Text style={st.detailLabel}>Facebook</Text><Text style={st.detailValue}>{showDetail.facebook}</Text></View>}
-                    </View>
-                  </>
-                )}
-
-                {/* Workplace */}
-                {(showDetail?.workplace || showDetail?.jobTitle) && (
-                  <>
-                    <Text style={st.sectionLabel}>Workplace</Text>
-                    <View style={st.detailGrid}>
-                      {showDetail?.workplace && <View style={st.detailItem}><Text style={st.detailLabel}>Company</Text><Text style={st.detailValue}>{showDetail.workplace}</Text></View>}
-                      {showDetail?.jobTitle && <View style={st.detailItem}><Text style={st.detailLabel}>Title</Text><Text style={st.detailValue}>{showDetail.jobTitle}</Text></View>}
-                    </View>
-                  </>
-                )}
-
-                {/* Address */}
-                {(showDetail?.addressStreet || showDetail?.addressCity) && (
-                  <>
-                    <Text style={st.sectionLabel}>Residential Address</Text>
-                    <Text style={st.bioText}>
-                      {[showDetail?.addressStreet, showDetail?.addressCity, showDetail?.addressState, showDetail?.addressPostalCode, showDetail?.addressCountry].filter(Boolean).join(', ')}
-                    </Text>
-                  </>
-                )}
-
-                {/* Next of Kin */}
-                {(showDetail?.nokFullName || showDetail?.nokPhone) && (
-                  <>
-                    <Text style={st.sectionLabel}>Next of Kin</Text>
-                    <View style={st.detailGrid}>
-                      {showDetail?.nokFullName && <View style={st.detailItem}><Text style={st.detailLabel}>Name</Text><Text style={st.detailValue}>{showDetail.nokFullName}</Text></View>}
-                      {showDetail?.nokRelationship && <View style={st.detailItem}><Text style={st.detailLabel}>Relation</Text><Text style={st.detailValue}>{showDetail.nokRelationship}</Text></View>}
-                      {showDetail?.nokPhone && <View style={st.detailItem}><Text style={st.detailLabel}>Phone</Text><Text style={st.detailValue}>{showDetail.nokPhone}</Text></View>}
-                      {showDetail?.nokEmail && <View style={st.detailItem}><Text style={st.detailLabel}>Email</Text><Text style={st.detailValue}>{showDetail.nokEmail}</Text></View>}
-                      {showDetail?.nokAddress && <View style={st.detailItem}><Text style={st.detailLabel}>Address</Text><Text style={st.detailValue}>{showDetail.nokAddress}</Text></View>}
-                    </View>
-                  </>
-                )}
-
-                {showDetail?.qualifications && (
-                  <>
-                    <Text style={st.sectionLabel}>Qualifications</Text>
-                    <Text style={st.bioText}>{showDetail.qualifications}</Text>
-                  </>
-                )}
-
-                {showDetail?.skills && showDetail.skills.length > 0 && (
-                  <>
-                    <Text style={st.sectionLabel}>Skills</Text>
-                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-                      {showDetail.skills.map((sk: string, i: number) => (
-                        <View key={i} style={[st.tag, { backgroundColor: 'rgba(139,92,246,0.15)' }]}>
-                          <Text style={[st.tagText, { color: '#A78BFA' }]}>{sk}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  </>
-                )}
-
-                {showDetail?.workExperience && (
-                  <>
-                    <Text style={st.sectionLabel}>Work Experience</Text>
-                    <Text style={st.bioText}>{showDetail.workExperience}</Text>
-                  </>
-                )}
-
-                {showDetail?.availability && (
-                  <>
-                    <Text style={st.sectionLabel}>Availability</Text>
-                    <Text style={st.bioText}>{showDetail.availability}</Text>
-                  </>
-                )}
-
-                {/* Admin Actions - only for DB profiles */}
-                {!isUsingDemo && (
-                  <View style={st.actionRow}>
-                    <TouchableOpacity style={[st.actionBtn, { backgroundColor: theme.colors.primary }]} onPress={() => openEdit(showDetail)}>
-                      <Ionicons name="create-outline" size={18} color={theme.colors.black} />
-                      <Text style={[st.actionBtnText, { color: theme.colors.black }]}>Edit</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[st.actionBtn, { backgroundColor: theme.colors.error }]}
-                      onPress={() => handleDelete(showDetail._id, `${showDetail.firstName} ${showDetail.lastName}`)}>
-                      <Ionicons name="trash-outline" size={18} color="#FFF" />
-                      <Text style={st.actionBtnText}>Delete</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-
-                {!isUsingDemo && showDetail?.status === 'pending' && (
-                  <View style={st.actionRow}>
-                    <TouchableOpacity style={[st.actionBtn, { backgroundColor: theme.colors.success }]} onPress={() => handleApprove(showDetail._id)}>
-                      <Ionicons name="checkmark" size={20} color="#FFF" />
-                      <Text style={st.actionBtnText}>Approve</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity style={[st.actionBtn, { backgroundColor: theme.colors.error }]} onPress={() => setShowDeclineModal(true)}>
-                      <Ionicons name="close" size={20} color="#FFF" />
-                      <Text style={st.actionBtnText}>Decline</Text>
-                    </TouchableOpacity>
-                  </View>
-                )}
-
-                {showDetail?.status === 'declined' && showDetail?.declineReason && (
-                  <View style={st.declineBox}>
-                    <Text style={st.declineLabel}>Decline Reason:</Text>
-                    <Text style={st.declineText}>{showDetail.declineReason}</Text>
-                  </View>
-                )}
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
-
-        {/* ===== EDIT MODAL ===== */}
-        <Modal visible={showEditModal} animationType="slide" transparent>
-          <View style={st.modalOverlay}>
-            <View style={st.modalContent}>
-              <View style={st.modalHeader}>
-                <Text style={st.modalTitle}>Edit Profile</Text>
-                <TouchableOpacity onPress={() => setShowEditModal(false)}>
-                  <Ionicons name="close" size={24} color={theme.colors.text} />
-                </TouchableOpacity>
-              </View>
-              <ScrollView showsVerticalScrollIndicator={false}>
-                <Text style={st.fieldLabel}>First Name</Text>
-                <TextInput style={st.input} value={editData.firstName} onChangeText={v => setEditData({...editData, firstName: v})} placeholderTextColor={theme.colors.textMuted} />
-                <Text style={st.fieldLabel}>Last Name</Text>
-                <TextInput style={st.input} value={editData.lastName} onChangeText={v => setEditData({...editData, lastName: v})} placeholderTextColor={theme.colors.textMuted} />
-                <Text style={st.fieldLabel}>Phone</Text>
-                <TextInput style={st.input} value={editData.phone} onChangeText={v => setEditData({...editData, phone: v})} placeholderTextColor={theme.colors.textMuted} />
-                <Text style={st.fieldLabel}>City</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 10 }}>
-                  {SA_CITIES.map(c => (
-                    <TouchableOpacity key={c} style={[st.chip, editData.city === c && st.chipActive]} onPress={() => setEditData({...editData, city: c})}>
-                      <Text style={[st.chipText, editData.city === c && st.chipTextActive]}>{c}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-                <Text style={st.fieldLabel}>Area / Suburb</Text>
-                <TextInput style={st.input} value={editData.area} onChangeText={v => setEditData({...editData, area: v})} placeholderTextColor={theme.colors.textMuted} />
-                <Text style={st.fieldLabel}>Race</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-                  {RACE_OPTIONS.map(r => (
-                    <TouchableOpacity key={r} style={[st.chip, editData.race === r && st.chipActive]} onPress={() => setEditData({...editData, race: r})}>
-                      <Text style={[st.chipText, editData.race === r && st.chipTextActive]}>{r}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                <Text style={st.fieldLabel}>Body Type</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-                  {BODY_TYPES.map(b => (
-                    <TouchableOpacity key={b} style={[st.chip, editData.bodyType === b && st.chipActive]} onPress={() => setEditData({...editData, bodyType: b})}>
-                      <Text style={[st.chipText, editData.bodyType === b && st.chipTextActive]}>{b}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                <Text style={st.fieldLabel}>Height (cm)</Text>
-                <TextInput style={st.input} value={editData.heightCm} onChangeText={v => setEditData({...editData, heightCm: v})} keyboardType="numeric" placeholderTextColor={theme.colors.textMuted} />
-                <Text style={st.fieldLabel}>Categories</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
-                  {CATEGORIES.map(c => (
-                    <TouchableOpacity key={c} style={[st.chip, editData.categories?.includes(c) && st.chipActive]} onPress={() => toggleCategory(c)}>
-                      <Text style={[st.chipText, editData.categories?.includes(c) && st.chipTextActive]}>{c}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                <Text style={st.fieldLabel}>Instagram Handle</Text>
-                <TextInput style={st.input} value={editData.instagram} onChangeText={v => setEditData({...editData, instagram: v})} placeholderTextColor={theme.colors.textMuted} />
-                <Text style={st.fieldLabel}>Bio</Text>
-                <TextInput style={[st.input, { height: 80, textAlignVertical: 'top' }]} value={editData.bio} onChangeText={v => setEditData({...editData, bio: v})} multiline placeholderTextColor={theme.colors.textMuted} />
-
-                {/* Contact Details */}
-                <Text style={[st.sectionLabel, { marginTop: 16 }]}>Contact Details</Text>
-                <Text style={st.fieldLabel}>Email</Text>
-                <TextInput style={st.input} value={editData.email} onChangeText={v => setEditData({...editData, email: v})} keyboardType="email-address" autoCapitalize="none" placeholderTextColor={theme.colors.textMuted} placeholder="Email Address" />
-                <Text style={st.fieldLabel}>Alternate Phone</Text>
-                <TextInput style={st.input} value={editData.altPhone} onChangeText={v => setEditData({...editData, altPhone: v})} keyboardType="phone-pad" placeholderTextColor={theme.colors.textMuted} placeholder="Alternate Phone" />
-
-                {/* Social Media */}
-                <Text style={[st.sectionLabel, { marginTop: 16 }]}>Social Media</Text>
-                <Text style={st.fieldLabel}>TikTok</Text>
-                <TextInput style={st.input} value={editData.tiktok} onChangeText={v => setEditData({...editData, tiktok: v})} autoCapitalize="none" placeholderTextColor={theme.colors.textMuted} placeholder="@handle" />
-                <Text style={st.fieldLabel}>Twitter / X</Text>
-                <TextInput style={st.input} value={editData.twitter} onChangeText={v => setEditData({...editData, twitter: v})} autoCapitalize="none" placeholderTextColor={theme.colors.textMuted} placeholder="@handle" />
-                <Text style={st.fieldLabel}>Facebook</Text>
-                <TextInput style={st.input} value={editData.facebook} onChangeText={v => setEditData({...editData, facebook: v})} autoCapitalize="none" placeholderTextColor={theme.colors.textMuted} placeholder="Profile URL" />
-
-                {/* Workplace */}
-                <Text style={[st.sectionLabel, { marginTop: 16 }]}>Workplace</Text>
-                <Text style={st.fieldLabel}>Company</Text>
-                <TextInput style={st.input} value={editData.workplace} onChangeText={v => setEditData({...editData, workplace: v})} placeholderTextColor={theme.colors.textMuted} placeholder="Current Employer" />
-                <Text style={st.fieldLabel}>Job Title</Text>
-                <TextInput style={st.input} value={editData.jobTitle} onChangeText={v => setEditData({...editData, jobTitle: v})} placeholderTextColor={theme.colors.textMuted} placeholder="Position" />
-
-                {/* Address */}
-                <Text style={[st.sectionLabel, { marginTop: 16 }]}>Residential Address</Text>
-                <Text style={st.fieldLabel}>Street</Text>
-                <TextInput style={st.input} value={editData.addressStreet} onChangeText={v => setEditData({...editData, addressStreet: v})} placeholderTextColor={theme.colors.textMuted} placeholder="Street Address" />
-                <Text style={st.fieldLabel}>City</Text>
-                <TextInput style={st.input} value={editData.addressCity} onChangeText={v => setEditData({...editData, addressCity: v})} placeholderTextColor={theme.colors.textMuted} placeholder="City" />
-                <Text style={st.fieldLabel}>Province / State</Text>
-                <TextInput style={st.input} value={editData.addressState} onChangeText={v => setEditData({...editData, addressState: v})} placeholderTextColor={theme.colors.textMuted} placeholder="Province" />
-                <Text style={st.fieldLabel}>Postal Code</Text>
-                <TextInput style={st.input} value={editData.addressPostalCode} onChangeText={v => setEditData({...editData, addressPostalCode: v})} placeholderTextColor={theme.colors.textMuted} placeholder="Postal Code" />
-                <Text style={st.fieldLabel}>Country</Text>
-                <TextInput style={st.input} value={editData.addressCountry} onChangeText={v => setEditData({...editData, addressCountry: v})} placeholderTextColor={theme.colors.textMuted} placeholder="Country" />
-
-                {/* Next of Kin */}
-                <Text style={[st.sectionLabel, { marginTop: 16 }]}>Next of Kin</Text>
-                <Text style={st.fieldLabel}>Full Name</Text>
-                <TextInput style={st.input} value={editData.nokFullName} onChangeText={v => setEditData({...editData, nokFullName: v})} placeholderTextColor={theme.colors.textMuted} placeholder="Full Name" />
-                <Text style={st.fieldLabel}>Relationship</Text>
-                <TextInput style={st.input} value={editData.nokRelationship} onChangeText={v => setEditData({...editData, nokRelationship: v})} placeholderTextColor={theme.colors.textMuted} placeholder="e.g. Parent, Spouse" />
-                <Text style={st.fieldLabel}>Phone</Text>
-                <TextInput style={st.input} value={editData.nokPhone} onChangeText={v => setEditData({...editData, nokPhone: v})} keyboardType="phone-pad" placeholderTextColor={theme.colors.textMuted} placeholder="Phone Number" />
-                <Text style={st.fieldLabel}>Email</Text>
-                <TextInput style={st.input} value={editData.nokEmail} onChangeText={v => setEditData({...editData, nokEmail: v})} keyboardType="email-address" autoCapitalize="none" placeholderTextColor={theme.colors.textMuted} placeholder="Email" />
-                <Text style={st.fieldLabel}>Address</Text>
-                <TextInput style={st.input} value={editData.nokAddress} onChangeText={v => setEditData({...editData, nokAddress: v})} placeholderTextColor={theme.colors.textMuted} placeholder="Physical Address" />
-
-                <TouchableOpacity style={st.saveBtn} onPress={handleSaveEdit}>
-                  <Text style={st.saveBtnText}>Save Changes</Text>
-                </TouchableOpacity>
-              </ScrollView>
-            </View>
-          </View>
-        </Modal>
-
-        {/* ===== DECLINE MODAL ===== */}
-        <Modal visible={showDeclineModal} animationType="fade" transparent>
-          <View style={[st.modalOverlay, { justifyContent: 'center' }]}>
-            <View style={[st.modalContent, { borderRadius: 20, marginHorizontal: 20 }]}>
-              <Text style={st.modalTitle}>Decline Reason</Text>
+            <View style={st.modalCard}>
+              <Text style={st.modalTitle}>Set Position</Text>
+              <Text style={st.modalSub}>
+                Move "{positionModal?.name}" to position:
+              </Text>
               <TextInput
-                style={[st.input, { height: 80, textAlignVertical: 'top', marginTop: 12 }]}
-                placeholder="Why is this profile being declined?"
+                style={st.modalInput}
+                value={positionInput}
+                onChangeText={setPositionInput}
+                keyboardType="number-pad"
+                autoFocus
+                selectTextOnFocus
+                placeholder={`1-${displayProfiles.length}`}
                 placeholderTextColor={theme.colors.textMuted}
-                value={declineReason}
-                onChangeText={setDeclineReason}
-                multiline
               />
-              <View style={st.actionRow}>
-                <TouchableOpacity style={[st.actionBtn, { backgroundColor: theme.colors.cardLight }]}
-                  onPress={() => { setShowDeclineModal(false); setDeclineReason(''); }}>
-                  <Text style={[st.actionBtnText, { color: theme.colors.text }]}>Cancel</Text>
+              <View style={st.modalButtons}>
+                <TouchableOpacity
+                  style={st.modalBtnCancel}
+                  onPress={() => setPositionModal(null)}
+                >
+                  <Text style={st.modalBtnCancelText}>Cancel</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={[st.actionBtn, { backgroundColor: theme.colors.error }]} onPress={handleDecline}>
-                  <Text style={st.actionBtnText}>Decline</Text>
+                <TouchableOpacity
+                  style={st.modalBtnConfirm}
+                  onPress={async () => {
+                    const pos = parseInt(positionInput, 10);
+                    if (positionModal) {
+                      setPositionModal(null);
+                      await handleMoveToPosition(positionModal.index, pos);
+                    }
+                  }}
+                >
+                  <Text style={st.modalBtnConfirmText}>Move</Text>
                 </TouchableOpacity>
               </View>
             </View>
           </View>
         </Modal>
+
+        <ProfileReviewModal
+          visible={!!selectedProfile}
+          profile={selectedProfile}
+          onClose={() => setSelectedProfileId(null)}
+          onActionComplete={() => setSelectedProfileId(null)}
+        />
       </SafeAreaView>
     </View>
   );
@@ -672,48 +380,67 @@ const st = StyleSheet.create({
   container: { flex: 1, backgroundColor: theme.colors.background },
   safe: { flex: 1 },
   title: { fontSize: 28, fontWeight: '800', color: theme.colors.primary, paddingHorizontal: 20, marginTop: 16, marginBottom: 12 },
-  filterRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 20, marginBottom: 14 },
-  filterChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border },
-  filterChipActive: { backgroundColor: 'rgba(201,168,76,0.2)', borderColor: theme.colors.primary },
-  filterText: { fontSize: 13, color: theme.colors.textSecondary },
-  filterTextActive: { color: theme.colors.primary, fontWeight: '600' },
+  filterRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 20, marginBottom: 14, flexGrow: 0 },
+  filterChip: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: theme.colors.card,
+    borderWidth: 1, borderColor: theme.colors.border,
+  },
+  filterChipActive: { backgroundColor: 'rgba(201,168,76,0.1)', borderColor: theme.colors.primary },
+  filterDot: { width: 6, height: 6, borderRadius: 3 },
+  filterText: { fontSize: 12, color: theme.colors.textSecondary, fontWeight: '600' },
+  filterTextActive: { color: theme.colors.primary },
+  filterCount: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 8, minWidth: 22, alignItems: 'center' as const },
+  filterCountText: { fontSize: 11, fontWeight: '700' },
   list: { paddingHorizontal: 20, paddingBottom: 20 },
-  card: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.card, borderRadius: 14, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: theme.colors.border },
+  card: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: theme.colors.card,
+    borderRadius: 14, padding: 12, marginBottom: 10, borderWidth: 1, borderColor: theme.colors.border,
+  },
   cardPhoto: { width: 64, height: 80, borderRadius: 10, marginRight: 12 },
   cardInfo: { flex: 1 },
-  cardName: { fontSize: 16, fontWeight: '700', color: theme.colors.text },
-  cardSub: { fontSize: 13, color: theme.colors.textMuted, marginTop: 2 },
+  cardName: { fontSize: 15, fontWeight: '700', color: theme.colors.text, flexShrink: 1 },
+  cardSub: { fontSize: 12, color: theme.colors.textMuted, marginTop: 2 },
   tag: { backgroundColor: 'rgba(201,168,76,0.15)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
   tagText: { fontSize: 10, color: theme.colors.primary, fontWeight: '600' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'flex-end' },
-  modalContent: { backgroundColor: theme.colors.background, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '92%' },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
-  modalTitle: { fontSize: 20, fontWeight: '700', color: theme.colors.text },
-  sectionLabel: { fontSize: 14, fontWeight: '700', color: theme.colors.text, marginBottom: 6, marginTop: 12 },
-  bioText: { fontSize: 14, color: theme.colors.textSecondary, lineHeight: 20, marginBottom: 16 },
-  detailGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginVertical: 12 },
-  detailItem: { backgroundColor: theme.colors.card, borderRadius: 10, padding: 10, minWidth: '30%', borderWidth: 1, borderColor: theme.colors.border },
-  detailLabel: { fontSize: 10, color: theme.colors.textMuted },
-  detailValue: { fontSize: 13, fontWeight: '600', color: theme.colors.text, marginTop: 2 },
-  actionRow: { flexDirection: 'row', gap: 12, marginTop: 12, marginBottom: 16 },
-  actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 14, borderRadius: 12 },
-  actionBtnText: { fontSize: 15, fontWeight: '700', color: '#FFF' },
-  photoMgmt: { marginTop: 12, marginBottom: 8 },
-  photoThumbWrap: { position: 'relative', marginRight: 10 },
-  photoThumb: { width: 64, height: 80, borderRadius: 8 },
-  photoRemoveBtn: { position: 'absolute', top: -6, right: -6, backgroundColor: theme.colors.background, borderRadius: 12 },
-  photoAddBtn: { width: 64, height: 80, borderRadius: 8, borderWidth: 1.5, borderColor: theme.colors.primary, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
-  declineBox: { backgroundColor: 'rgba(239,68,68,0.1)', borderRadius: 12, padding: 14, marginTop: 8, marginBottom: 16 },
-  declineLabel: { fontSize: 12, color: theme.colors.error, fontWeight: '600', marginBottom: 4 },
-  declineText: { fontSize: 14, color: theme.colors.textSecondary },
-  fieldLabel: { fontSize: 13, fontWeight: '600', color: theme.colors.textSecondary, marginBottom: 6, marginTop: 10 },
-  input: { backgroundColor: theme.colors.inputBg, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 14, fontSize: 15, color: theme.colors.text, borderWidth: 1, borderColor: theme.colors.border, marginBottom: 4 },
-  chip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, backgroundColor: theme.colors.card, borderWidth: 1, borderColor: theme.colors.border, marginRight: 6 },
-  chipActive: { backgroundColor: 'rgba(201,168,76,0.2)', borderColor: theme.colors.primary },
-  chipText: { fontSize: 13, color: theme.colors.textSecondary },
-  chipTextActive: { color: theme.colors.primary, fontWeight: '600' },
-  saveBtn: { backgroundColor: theme.colors.primary, paddingVertical: 16, borderRadius: 14, alignItems: 'center', marginTop: 16, marginBottom: 24 },
-  saveBtnText: { fontSize: 16, fontWeight: '700', color: theme.colors.black },
+  completenessChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 3,
+    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6,
+    backgroundColor: 'rgba(245,158,11,0.1)',
+  },
+  completenessText: { fontSize: 10, fontWeight: '700', color: theme.colors.warning },
   empty: { alignItems: 'center', paddingTop: 60 },
   emptyText: { fontSize: 17, fontWeight: '600', color: theme.colors.textSecondary, marginTop: 12 },
+  emptySubtext: { fontSize: 13, color: theme.colors.textMuted, marginTop: 4 },
+  orderBadge: {
+    width: 24, height: 24, borderRadius: 12, backgroundColor: theme.colors.primary,
+    alignItems: 'center', justifyContent: 'center', marginRight: 8,
+  },
+  orderBadgeText: { fontSize: 11, fontWeight: '800', color: theme.colors.black },
+  modalOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center', alignItems: 'center', padding: 40,
+  },
+  modalCard: {
+    backgroundColor: theme.colors.card, borderRadius: 16, padding: 24,
+    width: '100%', borderWidth: 1, borderColor: theme.colors.border,
+  },
+  modalTitle: { fontSize: 18, fontWeight: '700', color: theme.colors.text, marginBottom: 8 },
+  modalSub: { fontSize: 14, color: theme.colors.textSecondary, marginBottom: 16 },
+  modalInput: {
+    backgroundColor: theme.colors.cardLight, borderRadius: 10, padding: 14,
+    fontSize: 20, fontWeight: '700', color: theme.colors.text, textAlign: 'center',
+    borderWidth: 1, borderColor: theme.colors.border, marginBottom: 16,
+  },
+  modalButtons: { flexDirection: 'row', gap: 12 },
+  modalBtnCancel: {
+    flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center',
+    backgroundColor: theme.colors.cardLight,
+  },
+  modalBtnCancelText: { fontSize: 15, fontWeight: '600', color: theme.colors.textSecondary },
+  modalBtnConfirm: {
+    flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center',
+    backgroundColor: theme.colors.primary,
+  },
+  modalBtnConfirmText: { fontSize: 15, fontWeight: '700', color: theme.colors.black },
 });

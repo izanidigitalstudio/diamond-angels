@@ -1,22 +1,27 @@
-import { internalAction, internalMutation } from "./_generated/server";
+"use node";
+
+import { internalAction } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { v } from "convex/values";
 
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const RESEND_API_KEY = process.env.RESEND_API_KEY ?? "re_aRgCqwqR_LeNQwTEm9g5i1kvXyi4ANsE1";
 const RESEND_API_URL = "https://api.resend.com/emails";
-const FROM_EMAIL = "system@diamondangels.co.za";
+const FROM_EMAIL = "Diamond Angels <access@diamondangels.co.za>";
 
 export const sendEmail = internalAction({
   args: {
-    to: v.string(),
+    to: v.union(v.string(), v.array(v.string())),
     subject: v.string(),
     html: v.string(),
     replyTo: v.optional(v.string()),
   },
-  returns: v.any(),
+  returns: v.object({
+    success: v.boolean(),
+    id: v.optional(v.string()),
+    error: v.optional(v.string()),
+  }),
   handler: async (_ctx, args) => {
-    if (!RESEND_API_KEY) {
-      throw new Error("Missing RESEND_API_KEY in Convex environment variables.");
-    }
+    const toAddresses = typeof args.to === "string" ? [args.to] : args.to;
 
     try {
       const response = await fetch(RESEND_API_URL, {
@@ -27,7 +32,7 @@ export const sendEmail = internalAction({
         },
         body: JSON.stringify({
           from: FROM_EMAIL,
-          to: args.to,
+          to: toAddresses,
           subject: args.subject,
           html: args.html,
           reply_to: args.replyTo,
@@ -35,416 +40,274 @@ export const sendEmail = internalAction({
       });
 
       const data = await response.json();
+
       if (!response.ok) {
-        throw new Error(`Resend API error: ${data.message || response.statusText}`);
+        console.error("Resend API error:", JSON.stringify(data));
+        return {
+          success: false,
+          error: data.message ?? `HTTP ${response.status}`,
+        };
       }
-      return data;
-    } catch (error) {
-      console.error("Email send error:", error);
-      throw error;
+
+      return { success: true, id: data.id };
+    } catch (err: any) {
+      console.error("Email send failed:", err.message);
+      return { success: false, error: err.message };
     }
   },
 });
 
-// Email Templates
-export const emailTemplates = {
-  welcomeClient: (name: string, email: string): { subject: string; html: string } => ({
-    subject: "Welcome to Diamond Angels",
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: #2c3e50;">Welcome to Diamond Angels, ${name}!</h1>
-        <p>Thank you for creating an account with us.</p>
-        <p>You can now:</p>
-        <ul>
-          <li>Post event gigs and book talent</li>
-          <li>Manage your bookings and talent selections</li>
-          <li>Receive notifications about gig updates</li>
-        </ul>
-        <p>If you have any questions, feel free to reach out to our support team.</p>
-        <p>Best regards,<br/>Diamond Angels Team</p>
-      </div>
-    `,
-  }),
+// --- Email template helpers ---
 
-  welcomeTalent: (name: string, email: string): { subject: string; html: string } => ({
-    subject: "Welcome to Diamond Angels",
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: #2c3e50;">Welcome to Diamond Angels, ${name}!</h1>
-        <p>Thank you for creating an account with us.</p>
-        <p>You can now:</p>
-        <ul>
-          <li>Complete your talent profile</li>
-          <li>Browse available gigs</li>
-          <li>Express interest in events</li>
-          <li>Manage your bookings</li>
-        </ul>
-        <p>Please complete your profile to increase your visibility to clients.</p>
-        <p>Best regards,<br/>Diamond Angels Team</p>
-      </div>
-    `,
-  }),
-
-  welcomeAdmin: (name: string, email: string): { subject: string; html: string } => ({
-    subject: "Welcome to Diamond Angels Admin",
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: #2c3e50;">Welcome Admin, ${name}!</h1>
-        <p>You have been granted admin access to Diamond Angels.</p>
-        <p>Your access includes:</p>
-        <ul>
-          <li>Talent profile management</li>
-          <li>Booking request approvals</li>
-          <li>System administration</li>
-        </ul>
-        <p>Use your admin dashboard to manage the platform.</p>
-        <p>Best regards,<br/>Diamond Angels Team</p>
-      </div>
-    `,
-  }),
-
-  bookingConfirmation: (
-    clientName: string,
-    eventType: string,
-    eventDate: string,
-    talentCount: number
-  ): { subject: string; html: string } => ({
-    subject: `Booking Confirmation - ${eventType}`,
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: #2c3e50;">Booking Confirmed!</h1>
-        <p>Dear ${clientName},</p>
-        <p>Your booking has been confirmed:</p>
-        <ul>
-          <li><strong>Event Type:</strong> ${eventType}</li>
-          <li><strong>Event Date:</strong> ${eventDate}</li>
-          <li><strong>Talent Count:</strong> ${talentCount}</li>
-        </ul>
-        <p>You will receive further instructions closer to the event date.</p>
-        <p>Best regards,<br/>Diamond Angels Team</p>
-      </div>
-    `,
-  }),
-
-  talentBookingNotif: (
-    talentName: string,
-    eventType: string,
-    eventDate: string
-  ): { subject: string; html: string } => ({
-    subject: `You've Been Booked! - ${eventType}`,
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: #2c3e50;">Congratulations, ${talentName}!</h1>
-        <p>You have been booked for an event:</p>
-        <ul>
-          <li><strong>Event Type:</strong> ${eventType}</li>
-          <li><strong>Event Date:</strong> ${eventDate}</li>
-        </ul>
-        <p>Please check your account for full details and any event requirements.</p>
-        <p>Best regards,<br/>Diamond Angels Team</p>
-      </div>
-    `,
-  }),
-
-  profileApproved: (
-    talentName: string
-  ): { subject: string; html: string } => ({
-    subject: "Your Profile Has Been Approved!",
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: #2c3e50;">Profile Approved!</h1>
-        <p>Dear ${talentName},</p>
-        <p>Congratulations! Your talent profile has been approved and is now visible to clients.</p>
-        <p>You can now:</p>
-        <ul>
-          <li>Browse available gigs</li>
-          <li>Express interest in events</li>
-        </ul>
-        <p>Best regards,<br/>Diamond Angels Team</p>
-      </div>
-    `,
-  }),
-
-  profileDeclined: (
-    talentName: string,
-    reason: string
-  ): { subject: string; html: string } => ({
-    subject: "Profile Review Decision",
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: #2c3e50;">Profile Review Decision</h1>
-        <p>Dear ${talentName},</p>
-        <p>Thank you for submitting your profile. Unfortunately, it was not approved at this time.</p>
-        <p><strong>Reason:</strong> ${reason}</p>
-        <p>You can update your profile and resubmit for review.</p>
-        <p>Best regards,<br/>Diamond Angels Team</p>
-      </div>
-    `,
-  }),
-
-  interestExpressed: (
-    clientName: string,
-    talentName: string,
-    eventType: string
-  ): { subject: string; html: string } => ({
-    subject: `Talent Interest - ${talentName} for ${eventType}`,
-    html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: #2c3e50;">Talent Interest Notification</h1>
-        <p>Dear ${clientName},</p>
-        <p><strong>${talentName}</strong> has expressed interest in your event:</p>
-        <ul>
-          <li><strong>Event Type:</strong> ${eventType}</li>
-        </ul>
-        <p>View their profile and decide if you'd like to proceed with booking them.</p>
-        <p>Best regards,<br/>Diamond Angels Team</p>
-      </div>
-    `,
-  }),
-};
-
-// Send welcome email based on role
-export const sendWelcomeEmail = internalAction({
-  args: {
-    userId: v.id("users"),
-    email: v.string(),
-    name: v.string(),
-    role: v.string(),
-  },
-  returns: v.any(),
-  handler: async (ctx, args) => {
-    let template;
-    switch (args.role) {
-      case "client":
-        template = emailTemplates.welcomeClient(args.name, args.email);
-        break;
-      case "talent":
-        template = emailTemplates.welcomeTalent(args.name, args.email);
-        break;
-      case "admin":
-        template = emailTemplates.welcomeAdmin(args.name, args.email);
-        break;
-      default:
-        throw new Error("Unknown role");
-    }
-
-    return await ctx.runAction(sendEmail, {
-      to: args.email,
-      subject: template.subject,
-      html: template.html,
-    });
-  },
-});
-
-// Individual email action handlers
-export const sendProfileApprovedEmail = internalAction({
-  args: {
-    email: v.string(),
-    talentName: v.string(),
-  },
-  returns: v.any(),
-  handler: async (ctx, args) => {
-    const template = emailTemplates.profileApproved(args.talentName);
-    return await ctx.runAction(sendEmail, {
-      to: args.email,
-      subject: template.subject,
-      html: template.html,
-    });
-  },
-});
-
-export const sendProfileDeclinedEmail = internalAction({
-  args: {
-    email: v.string(),
-    talentName: v.string(),
-    reason: v.string(),
-  },
-  returns: v.any(),
-  handler: async (ctx, args) => {
-    const template = emailTemplates.profileDeclined(args.talentName, args.reason);
-    return await ctx.runAction(sendEmail, {
-      to: args.email,
-      subject: template.subject,
-      html: template.html,
-    });
-  },
-});
-
-export const sendBookingConfirmationEmail = internalAction({
+export const sendBookingStatusEmail = internalAction({
   args: {
     clientEmail: v.string(),
     clientName: v.string(),
     eventType: v.string(),
     eventDate: v.string(),
-    talentCount: v.number(),
+    venue: v.string(),
+    city: v.string(),
+    status: v.string(),
+    adminNotes: v.optional(v.string()),
   },
-  returns: v.any(),
+  returns: v.object({
+    success: v.boolean(),
+    id: v.optional(v.string()),
+    error: v.optional(v.string()),
+  }),
   handler: async (ctx, args) => {
-    const template = emailTemplates.bookingConfirmation(
-      args.clientName,
-      args.eventType,
-      args.eventDate,
-      args.talentCount
-    );
-    return await ctx.runAction(sendEmail, {
+    const statusLabel = args.status === "confirmed" ? "Confirmed ✅"
+      : args.status === "declined" ? "Declined"
+      : args.status === "completed" ? "Completed"
+      : args.status.charAt(0).toUpperCase() + args.status.slice(1);
+
+    const statusColor = args.status === "confirmed" ? "#16a34a"
+      : args.status === "declined" ? "#dc2626"
+      : args.status === "completed" ? "#2563eb"
+      : "#d97706";
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f8f9fa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <div style="max-width:600px;margin:0 auto;padding:20px;">
+    <div style="background:#000;padding:24px;text-align:center;border-radius:12px 12px 0 0;">
+      <h1 style="color:#d4af37;margin:0;font-size:24px;">💎 Diamond Angels</h1>
+    </div>
+    <div style="background:#fff;padding:32px;border-radius:0 0 12px 12px;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+      <p style="color:#333;font-size:16px;">Hi ${args.clientName},</p>
+      <p style="color:#555;font-size:15px;line-height:1.6;">
+        Your booking request has been updated:
+      </p>
+      <div style="background:#f8f9fa;border-radius:8px;padding:20px;margin:20px 0;">
+        <table style="width:100%;border-collapse:collapse;">
+          <tr>
+            <td style="padding:8px 0;color:#888;font-size:14px;">Status</td>
+            <td style="padding:8px 0;text-align:right;">
+              <span style="background:${statusColor};color:#fff;padding:4px 12px;border-radius:20px;font-size:13px;font-weight:600;">
+                ${statusLabel}
+              </span>
+            </td>
+          </tr>
+          <tr><td style="padding:8px 0;color:#888;font-size:14px;">Event</td><td style="padding:8px 0;text-align:right;color:#333;font-size:14px;font-weight:500;">${args.eventType}</td></tr>
+          <tr><td style="padding:8px 0;color:#888;font-size:14px;">Date</td><td style="padding:8px 0;text-align:right;color:#333;font-size:14px;">${args.eventDate}</td></tr>
+          <tr><td style="padding:8px 0;color:#888;font-size:14px;">Venue</td><td style="padding:8px 0;text-align:right;color:#333;font-size:14px;">${args.venue}</td></tr>
+          <tr><td style="padding:8px 0;color:#888;font-size:14px;">City</td><td style="padding:8px 0;text-align:right;color:#333;font-size:14px;">${args.city}</td></tr>
+        </table>
+      </div>
+      ${args.adminNotes ? `<div style="background:#fffbeb;border-left:4px solid #d97706;padding:12px 16px;margin:16px 0;border-radius:0 8px 8px 0;"><p style="margin:0;color:#92400e;font-size:14px;"><strong>Note from Diamond Angels:</strong><br/>${args.adminNotes}</p></div>` : ""}
+      ${args.status === "confirmed" ? `<p style="color:#555;font-size:15px;line-height:1.6;">We'll be in touch with further details about your event. If you have any questions, please don't hesitate to reach out.</p>` : ""}
+      <hr style="border:none;border-top:1px solid #eee;margin:24px 0;">
+      <p style="color:#999;font-size:12px;text-align:center;">Diamond Angels — Premium Event Staffing</p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    return await ctx.runAction(internal.email.sendEmail, {
       to: args.clientEmail,
-      subject: template.subject,
-      html: template.html,
+      subject: `Booking ${statusLabel} — ${args.eventType} | Diamond Angels`,
+      html,
     });
   },
 });
 
-export const sendInterestExpressedEmail = internalAction({
+export const sendNewBookingNotification = internalAction({
   args: {
-    clientEmail: v.string(),
+    adminEmail: v.string(),
     clientName: v.string(),
-    talentName: v.string(),
+    clientCompany: v.string(),
+    clientEmail: v.string(),
+    clientPhone: v.string(),
     eventType: v.string(),
+    eventDate: v.string(),
+    venue: v.string(),
+    city: v.string(),
+    talentCount: v.number(),
+    requirements: v.string(),
   },
-  returns: v.any(),
+  returns: v.object({
+    success: v.boolean(),
+    id: v.optional(v.string()),
+    error: v.optional(v.string()),
+  }),
   handler: async (ctx, args) => {
-    const template = emailTemplates.interestExpressed(
-      args.clientName,
-      args.talentName,
-      args.eventType
-    );
-    return await ctx.runAction(sendEmail, {
-      to: args.clientEmail,
-      subject: template.subject,
-      html: template.html,
+    const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f8f9fa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <div style="max-width:600px;margin:0 auto;padding:20px;">
+    <div style="background:#000;padding:24px;text-align:center;border-radius:12px 12px 0 0;">
+      <h1 style="color:#d4af37;margin:0;font-size:24px;">💎 Diamond Angels</h1>
+      <p style="color:#fff;margin:8px 0 0;font-size:14px;">New Booking Request</p>
+    </div>
+    <div style="background:#fff;padding:32px;border-radius:0 0 12px 12px;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+      <p style="color:#333;font-size:16px;font-weight:600;">A new booking has been submitted:</p>
+      <div style="background:#f8f9fa;border-radius:8px;padding:20px;margin:16px 0;">
+        <table style="width:100%;border-collapse:collapse;">
+          <tr><td style="padding:8px 0;color:#888;font-size:14px;">Client</td><td style="padding:8px 0;text-align:right;color:#333;font-size:14px;font-weight:500;">${args.clientName}</td></tr>
+          <tr><td style="padding:8px 0;color:#888;font-size:14px;">Company</td><td style="padding:8px 0;text-align:right;color:#333;font-size:14px;">${args.clientCompany}</td></tr>
+          <tr><td style="padding:8px 0;color:#888;font-size:14px;">Email</td><td style="padding:8px 0;text-align:right;color:#333;font-size:14px;"><a href="mailto:${args.clientEmail}" style="color:#2563eb;">${args.clientEmail}</a></td></tr>
+          <tr><td style="padding:8px 0;color:#888;font-size:14px;">Phone</td><td style="padding:8px 0;text-align:right;color:#333;font-size:14px;"><a href="tel:${args.clientPhone}" style="color:#2563eb;">${args.clientPhone}</a></td></tr>
+        </table>
+      </div>
+      <div style="background:#f8f9fa;border-radius:8px;padding:20px;margin:16px 0;">
+        <table style="width:100%;border-collapse:collapse;">
+          <tr><td style="padding:8px 0;color:#888;font-size:14px;">Event Type</td><td style="padding:8px 0;text-align:right;color:#333;font-size:14px;font-weight:500;">${args.eventType}</td></tr>
+          <tr><td style="padding:8px 0;color:#888;font-size:14px;">Date</td><td style="padding:8px 0;text-align:right;color:#333;font-size:14px;">${args.eventDate}</td></tr>
+          <tr><td style="padding:8px 0;color:#888;font-size:14px;">Venue</td><td style="padding:8px 0;text-align:right;color:#333;font-size:14px;">${args.venue}</td></tr>
+          <tr><td style="padding:8px 0;color:#888;font-size:14px;">City</td><td style="padding:8px 0;text-align:right;color:#333;font-size:14px;">${args.city}</td></tr>
+          <tr><td style="padding:8px 0;color:#888;font-size:14px;">Talent Needed</td><td style="padding:8px 0;text-align:right;color:#333;font-size:14px;font-weight:600;">${args.talentCount}</td></tr>
+        </table>
+      </div>
+      <div style="background:#eff6ff;border-radius:8px;padding:16px;margin:16px 0;">
+        <p style="margin:0 0 4px;color:#1e40af;font-size:13px;font-weight:600;">Requirements:</p>
+        <p style="margin:0;color:#333;font-size:14px;line-height:1.5;">${args.requirements}</p>
+      </div>
+      <hr style="border:none;border-top:1px solid #eee;margin:24px 0;">
+      <p style="color:#999;font-size:12px;text-align:center;">Diamond Angels — Premium Event Staffing</p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    return await ctx.runAction(internal.email.sendEmail, {
+      to: args.adminEmail,
+      subject: `New Booking: ${args.eventType} — ${args.clientName} | Diamond Angels`,
+      html,
+      replyTo: args.clientEmail,
     });
   },
 });
 
-// Test function to send all email types
-export const sendTestEmails = internalAction({
+export const sendTalentApprovalEmail = internalAction({
   args: {
-    testEmail: v.string(),
+    talentEmail: v.string(),
+    firstName: v.string(),
+    lastName: v.string(),
+    feedback: v.optional(v.string()),
   },
-  returns: v.array(v.any()),
+  returns: v.object({
+    success: v.boolean(),
+    id: v.optional(v.string()),
+    error: v.optional(v.string()),
+  }),
   handler: async (ctx, args) => {
-    const results = [];
+    const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f8f9fa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <div style="max-width:600px;margin:0 auto;padding:20px;">
+    <div style="background:#000;padding:24px;text-align:center;border-radius:12px 12px 0 0;">
+      <h1 style="color:#d4af37;margin:0;font-size:24px;">💎 Diamond Angels</h1>
+    </div>
+    <div style="background:#fff;padding:32px;border-radius:0 0 12px 12px;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+      <div style="text-align:center;margin-bottom:24px;">
+        <span style="display:inline-block;background:#16a34a;color:#fff;padding:8px 24px;border-radius:24px;font-size:16px;font-weight:600;">Congratulations! 🎉</span>
+      </div>
+      <p style="color:#333;font-size:16px;">Hi ${args.firstName},</p>
+      <p style="color:#555;font-size:15px;line-height:1.6;">
+        We are thrilled to let you know that your talent application has been <strong style="color:#16a34a;">approved</strong>!
+      </p>
+      <p style="color:#555;font-size:15px;line-height:1.6;">
+        Welcome to the Diamond Angels family. Your profile is now live and visible to our clients for bookings and event opportunities.
+      </p>
+      <div style="background:#f0fdf4;border-left:4px solid #16a34a;padding:16px;margin:20px 0;border-radius:0 8px 8px 0;">
+        <p style="margin:0;color:#166534;font-size:14px;line-height:1.5;">
+          <strong>What's next?</strong><br/>
+          • Keep your profile and photos up to date<br/>
+          • Check the app regularly for new gig opportunities<br/>
+          • Respond promptly to booking requests
+        </p>
+      </div>
+      ${args.feedback ? `<div style="background:#fffbeb;border-left:4px solid #d97706;padding:12px 16px;margin:16px 0;border-radius:0 8px 8px 0;"><p style="margin:0;color:#92400e;font-size:14px;"><strong>Note from Diamond Angels:</strong><br/>${args.feedback}</p></div>` : ""}
+      <p style="color:#555;font-size:15px;line-height:1.6;">
+        We look forward to working with you, ${args.firstName}!
+      </p>
+      <hr style="border:none;border-top:1px solid #eee;margin:24px 0;">
+      <p style="color:#999;font-size:12px;text-align:center;">Diamond Angels — Premium Event Staffing</p>
+    </div>
+  </div>
+</body>
+</html>`;
 
-    try {
-      // Welcome Client Email
-      const welcomeClientTemplate = emailTemplates.welcomeClient("John Smith", args.testEmail);
-      const welcomeClientResult = await ctx.runAction(sendEmail, {
-        to: args.testEmail,
-        subject: welcomeClientTemplate.subject,
-        html: welcomeClientTemplate.html,
-      });
-      results.push({ type: "Welcome Client", status: "sent", result: welcomeClientResult });
-    } catch (e: any) {
-      results.push({ type: "Welcome Client", status: "failed", error: e.message });
-    }
+    return await ctx.runAction(internal.email.sendEmail, {
+      to: args.talentEmail,
+      subject: `Congratulations ${args.firstName}! Your Diamond Angels Application is Approved`,
+      html,
+    });
+  },
+});
 
-    try {
-      // Welcome Talent Email
-      const welcomeTalentTemplate = emailTemplates.welcomeTalent("Naledi Mokoena", args.testEmail);
-      const welcomeTalentResult = await ctx.runAction(sendEmail, {
-        to: args.testEmail,
-        subject: welcomeTalentTemplate.subject,
-        html: welcomeTalentTemplate.html,
-      });
-      results.push({ type: "Welcome Talent", status: "sent", result: welcomeTalentResult });
-    } catch (e: any) {
-      results.push({ type: "Welcome Talent", status: "failed", error: e.message });
-    }
+export const sendTalentDeclineEmail = internalAction({
+  args: {
+    talentEmail: v.string(),
+    firstName: v.string(),
+    lastName: v.string(),
+    reason: v.string(),
+  },
+  returns: v.object({
+    success: v.boolean(),
+    id: v.optional(v.string()),
+    error: v.optional(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background:#f8f9fa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <div style="max-width:600px;margin:0 auto;padding:20px;">
+    <div style="background:#000;padding:24px;text-align:center;border-radius:12px 12px 0 0;">
+      <h1 style="color:#d4af37;margin:0;font-size:24px;">💎 Diamond Angels</h1>
+    </div>
+    <div style="background:#fff;padding:32px;border-radius:0 0 12px 12px;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+      <p style="color:#333;font-size:16px;">Hi ${args.firstName},</p>
+      <p style="color:#555;font-size:15px;line-height:1.6;">
+        Thank you for your interest in joining Diamond Angels. After reviewing your application, we regret to inform you that your profile has not been approved at this time.
+      </p>
+      <div style="background:#fef2f2;border-left:4px solid #dc2626;padding:16px;margin:20px 0;border-radius:0 8px 8px 0;">
+        <p style="margin:0;color:#991b1b;font-size:14px;line-height:1.5;">
+          <strong>Reason:</strong><br/>${args.reason}
+        </p>
+      </div>
+      <p style="color:#555;font-size:15px;line-height:1.6;">
+        You are welcome to update your profile and reapply. If you have any questions, please don't hesitate to reach out to us.
+      </p>
+      <hr style="border:none;border-top:1px solid #eee;margin:24px 0;">
+      <p style="color:#999;font-size:12px;text-align:center;">Diamond Angels — Premium Event Staffing</p>
+    </div>
+  </div>
+</body>
+</html>`;
 
-    try {
-      // Welcome Admin Email
-      const welcomeAdminTemplate = emailTemplates.welcomeAdmin("Admin User", args.testEmail);
-      const welcomeAdminResult = await ctx.runAction(sendEmail, {
-        to: args.testEmail,
-        subject: welcomeAdminTemplate.subject,
-        html: welcomeAdminTemplate.html,
-      });
-      results.push({ type: "Welcome Admin", status: "sent", result: welcomeAdminResult });
-    } catch (e: any) {
-      results.push({ type: "Welcome Admin", status: "failed", error: e.message });
-    }
-
-    try {
-      // Booking Confirmation Email
-      const bookingTemplate = emailTemplates.bookingConfirmation(
-        "Sarah van der Merwe",
-        "Fashion Show",
-        "20 March 2025",
-        8
-      );
-      const bookingResult = await ctx.runAction(sendEmail, {
-        to: args.testEmail,
-        subject: bookingTemplate.subject,
-        html: bookingTemplate.html,
-      });
-      results.push({ type: "Booking Confirmation", status: "sent", result: bookingResult });
-    } catch (e: any) {
-      results.push({ type: "Booking Confirmation", status: "failed", error: e.message });
-    }
-
-    try {
-      // Talent Booking Notification Email
-      const talentBookingTemplate = emailTemplates.talentBookingNotif(
-        "Naledi Mokoena",
-        "Fashion Show",
-        "20 March 2025"
-      );
-      const talentBookingResult = await ctx.runAction(sendEmail, {
-        to: args.testEmail,
-        subject: talentBookingTemplate.subject,
-        html: talentBookingTemplate.html,
-      });
-      results.push({ type: "Talent Booking Notification", status: "sent", result: talentBookingResult });
-    } catch (e: any) {
-      results.push({ type: "Talent Booking Notification", status: "failed", error: e.message });
-    }
-
-    try {
-      // Profile Approved Email
-      const approvedTemplate = emailTemplates.profileApproved("Thandi Mabaso");
-      const approvedResult = await ctx.runAction(sendEmail, {
-        to: args.testEmail,
-        subject: approvedTemplate.subject,
-        html: approvedTemplate.html,
-      });
-      results.push({ type: "Profile Approved", status: "sent", result: approvedResult });
-    } catch (e: any) {
-      results.push({ type: "Profile Approved", status: "failed", error: e.message });
-    }
-
-    try {
-      // Profile Declined Email
-      const declinedTemplate = emailTemplates.profileDeclined(
-        "Kayla September",
-        "Photos do not meet quality standards"
-      );
-      const declinedResult = await ctx.runAction(sendEmail, {
-        to: args.testEmail,
-        subject: declinedTemplate.subject,
-        html: declinedTemplate.html,
-      });
-      results.push({ type: "Profile Declined", status: "sent", result: declinedResult });
-    } catch (e: any) {
-      results.push({ type: "Profile Declined", status: "failed", error: e.message });
-    }
-
-    try {
-      // Interest Expressed Email
-      const interestTemplate = emailTemplates.interestExpressed(
-        "Michael Dube",
-        "Naledi Mokoena",
-        "Summer Festival Promoters"
-      );
-      const interestResult = await ctx.runAction(sendEmail, {
-        to: args.testEmail,
-        subject: interestTemplate.subject,
-        html: interestTemplate.html,
-      });
-      results.push({ type: "Interest Expressed", status: "sent", result: interestResult });
-    } catch (e: any) {
-      results.push({ type: "Interest Expressed", status: "failed", error: e.message });
-    }
-
-    return results;
+    return await ctx.runAction(internal.email.sendEmail, {
+      to: args.talentEmail,
+      subject: `Diamond Angels Application Update — ${args.firstName} ${args.lastName}`,
+      html,
+    });
   },
 });

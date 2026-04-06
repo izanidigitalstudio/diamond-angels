@@ -31,11 +31,13 @@ export default function TalentSettingsScreen() {
                 {profile && (
                   <View style={[styles.statusBadge, {
                     backgroundColor: profile.status === 'approved' ? 'rgba(16,185,129,0.15)' :
-                      profile.status === 'pending' ? 'rgba(245,158,11,0.15)' : 'rgba(239,68,68,0.15)'
+                      profile.status === 'pending' ? 'rgba(245,158,11,0.15)' :
+                      profile.status === 'archived' ? 'rgba(107,114,128,0.15)' : 'rgba(239,68,68,0.15)'
                   }]}>
                     <Text style={[styles.statusText, {
                       color: profile.status === 'approved' ? theme.colors.success :
-                        profile.status === 'pending' ? theme.colors.warning : theme.colors.error
+                        profile.status === 'pending' ? theme.colors.warning :
+                        profile.status === 'archived' ? '#6B7280' : theme.colors.error
                     }]}>
                       {profile.status.charAt(0).toUpperCase() + profile.status.slice(1)}
                     </Text>

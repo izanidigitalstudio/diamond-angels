@@ -82,6 +82,12 @@ export default function RoleSelectScreen() {
             </TouchableOpacity>
           ) : (
             <View style={styles.adminSection}>
+              <TouchableOpacity
+                style={styles.adminCancelBtn}
+                onPress={() => { setShowAdminInput(false); setAdminCode(''); }}
+              >
+                <Ionicons name="close-circle" size={22} color={theme.colors.textMuted} />
+              </TouchableOpacity>
               <TextInput
                 style={styles.adminInput}
                 placeholder="Enter admin code"
@@ -133,6 +139,9 @@ const styles = StyleSheet.create({
   adminLinkText: { fontSize: 14, color: theme.colors.textMuted },
   adminSection: {
     flexDirection: 'row', marginTop: 20, gap: 12, alignItems: 'center',
+  },
+  adminCancelBtn: {
+    padding: 4,
   },
   adminInput: {
     flex: 1, backgroundColor: theme.colors.inputBg, borderRadius: 12,

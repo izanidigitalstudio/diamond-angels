@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, TextInput, ScrollView,
-  Alert, ActivityIndicator, Image, KeyboardAvoidingView, Platform,
-  Dimensions, Animated, Modal,
+  Image, Alert, Dimensions, FlatList, ActivityIndicator, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useQuery, useMutation } from 'convex/react';
+import { useAuthActions } from '@convex-dev/auth/react';
 import { api } from '../../convex/_generated/api';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -78,18 +78,22 @@ function HeroPhotoSlider({ photos, onEditPress }: { photos: string[]; onEditPres
 
   return (
     <View style={hero.container}>
-      <ScrollView
-        horizontal pagingEnabled showsHorizontalScrollIndicator={false}
-        onScroll={(e) => {
+      <FlatList
+        data={validPhotos}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        keyExtractor={(_, i) => String(i)}
+        onMomentumScrollEnd={(e) => {
           const idx = Math.round(e.nativeEvent.contentOffset.x / SCREEN_WIDTH);
           setActiveIdx(idx);
         }}
-        scrollEventThrottle={16}
-      >
-        {validPhotos.map((url, i) => (
-          <Image key={i} source={{ uri: url }} style={hero.image} />
-        ))}
-      </ScrollView>
+        renderItem={({ item }) => (
+          <Image source={{ uri: item }} style={hero.image} />
+        )}
+        nestedScrollEnabled
+        getItemLayout={(_, index) => ({ length: SCREEN_WIDTH, offset: SCREEN_WIDTH * index, index })}
+      />
       <LinearGradient
         colors={['transparent', 'rgba(10,10,15,0.4)', theme.colors.background]}
         style={hero.gradient}
@@ -201,9 +205,13 @@ const ir = StyleSheet.create({
 // ========== MAIN COMPONENT ==========
 export default function TalentProfileScreen() {
   const profile = useQuery(api.talent.getMyProfile);
+ const user = useQuery(api.users.getCurrentUser);
+  const { signOut } = useAuthActions();
   const createProfile = useMutation(api.talent.createProfile);
   const updateProfile = useMutation(api.talent.updateProfile);
   const generateUploadUrl = useMutation(api.files.generateUploadUrl);
+  const addMyPhoto = useMutation(api.talent.addMyPhoto);
+  const removeMyPhoto = useMutation(api.talent.removeMyPhoto);
 
   const [mode, setMode] = useState<'view' | 'edit'>('view');
   const [firstName, setFirstName] = useState('');
@@ -238,6 +246,7 @@ export default function TalentProfileScreen() {
   const [photoStorageIds, setPhotoStorageIds] = useState<any[]>([]);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [viewUploading, setViewUploading] = useState(false);
   const [showCityPicker, setShowCityPicker] = useState(false);
   const [editSection, setEditSection] = useState<string | null>(null);
 
@@ -337,6 +346,52 @@ export default function TalentProfileScreen() {
     );
   };
 
+
+  // --- View mode photo management (direct save) ---
+const viewAddPhoto = async () => {
+try {
+const result = await ImagePicker.launchImageLibraryAsync({
+mediaTypes: ['images'],
+allowsMultipleSelection: true,
+quality: 0.8,
+selectionLimit: MAX_PHOTOS - (photoUrls?.length || 0),
+});
+if (result.canceled || !result.assets?.length) return;
+setViewUploading(true);
+for (const asset of result.assets) {
+const uploadUrl = await generateUploadUrl();
+const resp = await fetch(asset.uri);
+const blob = await resp.blob();
+const uploadResult = await fetch(uploadUrl, {
+method: 'POST',
+headers: { 'Content-Type': asset.mimeType || 'image/jpeg' },
+body: blob,
+});
+const { storageId } = await uploadResult.json();
+await addMyPhoto({ storageId });
+}
+} catch (e: any) {
+Alert.alert('Error', e.message || 'Failed to upload photo');
+} finally {
+setViewUploading(false);
+}
+};
+
+const viewRemovePhoto = (index: number) => {
+Alert.alert('Remove Photo', 'Are you sure you want to delete this photo?', [
+{ text: 'Cancel', style: 'cancel' },
+{
+text: 'Delete', style: 'destructive', onPress: async () => {
+try {
+await removeMyPhoto({ photoIndex: index });
+} catch (e: any) {
+Alert.alert('Error', e.message || 'Failed to remove photo');
+}
+}
+},
+]);
+};
+
   const handleSave = async () => {
     if (!firstName.trim()) {
       Alert.alert('Name Required', 'Please enter at least your first name');
@@ -419,11 +474,14 @@ export default function TalentProfileScreen() {
     : photos.map((p: any) => p.uri).filter(Boolean);
 
   const statusColor = profile?.status === 'approved' ? ACCENT.teal :
-    profile?.status === 'pending' ? ACCENT.amber : ACCENT.rose;
+    profile?.status === 'pending' ? ACCENT.amber :
+    profile?.status === 'archived' ? '#6B7280' : ACCENT.rose;
   const statusIcon = profile?.status === 'approved' ? 'checkmark-circle' :
-    profile?.status === 'pending' ? 'time' : 'close-circle';
+    profile?.status === 'pending' ? 'time' :
+    profile?.status === 'archived' ? 'archive' : 'close-circle';
   const statusLabel = profile?.status === 'approved' ? 'Approved' :
-    profile?.status === 'pending' ? 'Under Review' : 'Declined';
+    profile?.status === 'pending' ? 'Under Review' :
+    profile?.status === 'archived' ? 'Archived' : 'Declined';
 
   // ========== VIEW MODE ==========
   if (mode === 'view' && hasProfile) {
@@ -471,17 +529,37 @@ export default function TalentProfileScreen() {
               </View>
             )}
 
-            {/* Photo Thumbnails Strip */}
-            {photoUrls.length > 1 && (
-              <>
-                <SectionHeader icon="images" title="Gallery" color={ACCENT.gold} onEdit={() => setMode('edit')} />
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 8 }}>
-                  {photoUrls.map((url: string, i: number) => (
-                    <Image key={i} source={{ uri: url }} style={styles.galleryThumb} />
-                  ))}
-                </ScrollView>
-              </>
-            )}
+{/* Photo Gallery - Add / Delete */}
+<SectionHeader icon="images" title={`Photos (${photoUrls.length}/${MAX_PHOTOS})`} color={ACCENT.gold} />
+<ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+{photoUrls.map((url: string, i: number) => (
+<View key={i} style={styles.galleryThumbWrap}>
+<Image source={{ uri: url }} style={styles.galleryThumbImg} />
+<TouchableOpacity style={styles.galleryDeleteBtn} onPress={() => viewRemovePhoto(i)}>
+<View style={styles.galleryDeleteBg}>
+<Ionicons name="close" size={12} color="#fff" />
+</View>
+</TouchableOpacity>
+{i === 0 && (
+<View style={styles.galleryMainBadge}>
+<Text style={styles.galleryMainText}>Main</Text>
+</View>
+)}
+</View>
+))}
+{photoUrls.length < MAX_PHOTOS && (
+<TouchableOpacity style={styles.galleryAddBtn} onPress={viewAddPhoto} disabled={viewUploading}>
+{viewUploading ? (
+<ActivityIndicator size="small" color={ACCENT.gold} />
+) : (
+<>
+<Ionicons name="add-circle" size={28} color={ACCENT.gold} />
+<Text style={styles.galleryAddText}>Add</Text>
+</>
+)}
+</TouchableOpacity>
+)}
+</ScrollView>
 
             {/* Bio */}
             {profile.bio ? (
@@ -579,6 +657,20 @@ export default function TalentProfileScreen() {
               </TouchableOpacity>
             )}
 
+
+{/* Account & Settings */}
+<SectionHeader icon="settings" title="Account" color={ACCENT.blue} />
+<View style={styles.infoCard}>
+<InfoRow icon="mail" label="Account" value={user?.email || ''} color={ACCENT.blue} />
+<InfoRow icon="star" label="Role" value="Talent" color={ACCENT.purple} />
+{profile?.city && <InfoRow icon="location" label="City" value={profile.city} />}
+{profile?.phone && <InfoRow icon="call" label="Phone" value={profile.phone} />}
+</View>
+
+<TouchableOpacity style={styles.signOutBtn} onPress={() => signOut()}>
+<Ionicons name="log-out-outline" size={20} color="#EF4444" />
+<Text style={styles.signOutText}>Sign Out</Text>
+</TouchableOpacity>
             <View style={{ height: 40 }} />
           </View>
         </ScrollView>
@@ -802,6 +894,26 @@ export default function TalentProfileScreen() {
               </LinearGradient>
             </TouchableOpacity>
 
+
+{/* View Profile Preview Button */}
+<TouchableOpacity
+style={styles.viewProfileBtn}
+onPress={() => {
+if (hasProfile) {
+loadProfileData();
+setMode('view');
+} else {
+Alert.alert(
+'No Profile Yet',
+'Submit your profile first, then you can preview how it appears to clients.'
+);
+}
+}}
+activeOpacity={0.8}
+>
+<Ionicons name="eye-outline" size={20} color={ACCENT.gold} />
+<Text style={styles.viewProfileBtnText}>View Profile</Text>
+</TouchableOpacity>
             <View style={{ height: 40 }} />
           </ScrollView>
         </KeyboardAvoidingView>
@@ -820,21 +932,28 @@ const styles = StyleSheet.create({
     borderWidth: 1, marginBottom: 10,
   },
   statusPillText: { fontSize: 12, fontWeight: '700' },
-  heroName: { fontSize: 30, fontWeight: '900', color: theme.colors.text, letterSpacing: -0.5 },
-  heroLocationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6 },
-  heroLocation: { fontSize: 14, color: theme.colors.textSecondary },
-  content: { paddingHorizontal: 20 },
-  statsRow: { flexDirection: 'row', gap: 10, marginTop: 20 },
-  tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 },
-  categoryTag: {
-    backgroundColor: ACCENT.gold + '18', paddingHorizontal: 14, paddingVertical: 7,
-    borderRadius: 20, borderWidth: 1, borderColor: ACCENT.gold + '40',
+  galleryThumbWrap: {
+  width: 90, height: 115, borderRadius: 14, marginRight: 10,
+  overflow: 'hidden', borderWidth: 2, borderColor: theme.colors.border, position: 'relative',
   },
-  categoryTagText: { fontSize: 13, fontWeight: '700', color: ACCENT.gold },
-  galleryThumb: {
-    width: 80, height: 100, borderRadius: 12, marginRight: 10,
-    borderWidth: 2, borderColor: theme.colors.border,
+  galleryThumbImg: { width: '100%', height: '100%', resizeMode: 'cover' },
+  galleryDeleteBtn: { position: 'absolute', top: 4, right: 4, zIndex: 2 },
+  galleryDeleteBg: {
+  backgroundColor: '#E11D48', width: 22, height: 22, borderRadius: 11,
+  alignItems: 'center', justifyContent: 'center',
   },
+  galleryMainBadge: {
+  position: 'absolute', bottom: 0, left: 0, right: 0,
+  backgroundColor: '#D4A017', paddingVertical: 2, alignItems: 'center',
+  },
+  galleryMainText: { fontSize: 9, fontWeight: '800', color: '#000' },
+  galleryAddBtn: {
+  width: 90, height: 115, borderRadius: 14, borderWidth: 2,
+  borderColor: '#D4A01760', borderStyle: 'dashed',
+  alignItems: 'center', justifyContent: 'center',
+  backgroundColor: '#D4A01708',
+  },
+  galleryAddText: { fontSize: 11, fontWeight: '700', color: theme.colors.primary, marginTop: 4 },
   bioText: { fontSize: 15, color: theme.colors.textSecondary, lineHeight: 24 },
   infoCard: {
     backgroundColor: theme.colors.card, borderRadius: 14, paddingHorizontal: 16, paddingVertical: 4,
@@ -929,4 +1048,18 @@ const styles = StyleSheet.create({
     paddingVertical: 18, gap: 8,
   },
   saveBtnText: { fontSize: 17, fontWeight: '800', color: theme.colors.black },
+signOutBtn: {
+flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+paddingVertical: 16, borderRadius: 14,
+backgroundColor: 'rgba(239,68,68,0.1)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)',
+marginTop: 20,
+},
+signOutText: { fontSize: 16, fontWeight: '600', color: '#EF4444' },
+viewProfileBtn: {
+flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+paddingVertical: 16, borderRadius: 14,
+backgroundColor: 'rgba(212,160,23,0.1)', borderWidth: 1, borderColor: 'rgba(212,160,23,0.25)',
+marginTop: 12,
+},
+viewProfileBtnText: { fontSize: 16, fontWeight: '600', color: '#D4A017' },
 });

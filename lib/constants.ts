@@ -20,10 +20,10 @@ export const CATEGORIES = [
 ];
 
 export const EVENT_TYPES = [
-  'Brand Launch', 'Activation', 'In-store Promotion', 'Golf Day',
+  'Brand Launch', 'Activation', 'Brand Activation', 'In-store Promotion', 'Golf Day',
   'Photoshoot', 'Music Video', 'Movie', 'Advertising Campaign',
   'Fashion Show', 'Conference', 'Award Ceremony', 'Music Festival',
-  'Festival', 'Sports Event', 'Corporate Event', 'Other',
+  'Festival', 'Sports Event', 'Corporate Event', 'Horse Racing', 'Exhibition', 'Other',
 ];
 
 export const ADMIN_CODE = 'DIAMOND2024';

@@ -32,6 +32,7 @@ export default defineSchema({
     instagram: v.optional(v.string()),
     status: v.string(),
     declineReason: v.optional(v.string()),
+    adminNotes: v.optional(v.string()),
     // Contact details
     email: v.optional(v.string()),
     altPhone: v.optional(v.string()),
@@ -54,6 +55,7 @@ export default defineSchema({
     nokPhone: v.optional(v.string()),
     nokEmail: v.optional(v.string()),
     nokAddress: v.optional(v.string()),
+    displayOrder: v.optional(v.number()),
   }).index("by_userId", ["userId"])
     .index("by_status", ["status"])
     .index("by_status_and_city", ["status", "city"]),
@@ -141,4 +143,35 @@ export default defineSchema({
     status: v.string(),
   }).index("by_userId", ["userId"])
     .index("by_status", ["status"]),
+
+  members: defineTable({
+    name: v.string(),
+    company: v.optional(v.string()),
+    role: v.optional(v.string()),
+    category: v.string(),
+    phone: v.optional(v.string()),
+    email: v.optional(v.string()),
+    city: v.optional(v.string()),
+    notes: v.optional(v.string()),
+  }).index("by_category", ["category"]),
+
+  notices: defineTable({
+    title: v.string(),
+    body: v.string(),
+    type: v.string(),
+    pinned: v.boolean(),
+    createdBy: v.id("users"),
+  }).index("by_pinned", ["pinned"]),
+
+  smsLog: defineTable({
+    sentBy: v.optional(v.id("users")),
+    gigId: v.optional(v.id("gigs")),
+    recipientIds: v.optional(v.array(v.id("talentProfiles"))),
+    recipientCount: v.number(),
+    message: v.string(),
+    channel: v.string(),
+    sent: v.optional(v.number()),
+    failed: v.optional(v.number()),
+    gigTitle: v.optional(v.string()),
+  }),
 });

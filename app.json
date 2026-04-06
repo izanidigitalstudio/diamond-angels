@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Diamond Angels",
-    "slug": "snack-cc48cb8a-c739-488a-a766-23314d4b91f8",
+    "name": "a0-project",
+    "slug": "snack-60b2bbd5-9247-41ab-aab4-8ae53227e1c4",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -26,6 +26,6 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "description": "Diamond Angels talent and bookings platform"
+    "description": "Quickly generate React Native components with AI"
   }
 }

@@ -21,6 +21,7 @@ const talentProfileReturn = v.object({
   instagram: v.optional(v.string()),
   status: v.string(),
   declineReason: v.optional(v.string()),
+  adminNotes: v.optional(v.string()),
   email: v.optional(v.string()),
   altPhone: v.optional(v.string()),
   workplace: v.optional(v.string()),
@@ -38,6 +39,7 @@ const talentProfileReturn = v.object({
   nokPhone: v.optional(v.string()),
   nokEmail: v.optional(v.string()),
   nokAddress: v.optional(v.string()),
+  displayOrder: v.optional(v.number()),
 });
 
 async function resolvePhotoUrls(ctx: any, photos: any[]) {
@@ -63,6 +65,7 @@ function formatProfile(profile: any, photoUrls: (string | null)[]) {
     instagram: profile.instagram,
     status: profile.status,
     declineReason: profile.declineReason,
+    adminNotes: profile.adminNotes,
     email: profile.email,
     altPhone: profile.altPhone,
     workplace: profile.workplace,
@@ -80,6 +83,7 @@ function formatProfile(profile: any, photoUrls: (string | null)[]) {
     nokPhone: profile.nokPhone,
     nokEmail: profile.nokEmail,
     nokAddress: profile.nokAddress,
+    displayOrder: profile.displayOrder,
   };
 }
 
@@ -194,6 +198,58 @@ export const updateProfile = mutation({
   },
 });
 
+export const addMyPhoto = mutation({
+  args: {
+    storageId: v.id("_storage"),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const profiles = await ctx.db
+      .query("talentProfiles")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .take(1);
+    if (profiles.length === 0) throw new Error("Profile not found");
+
+    const profile = profiles[0];
+    if (profile.photos.length >= 5) throw new Error("Maximum 5 photos allowed");
+
+    await ctx.db.patch(profile._id, {
+      photos: [...profile.photos, args.storageId],
+    });
+    return null;
+  },
+});
+
+export const removeMyPhoto = mutation({
+  args: {
+    photoIndex: v.number(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const profiles = await ctx.db
+      .query("talentProfiles")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .take(1);
+    if (profiles.length === 0) throw new Error("Profile not found");
+
+    const profile = profiles[0];
+    const photoId = profile.photos[args.photoIndex];
+    if (photoId) {
+      try { await ctx.storage.delete(photoId); } catch (_) {}
+    }
+
+    const newPhotos = profile.photos.filter((_: any, i: number) => i !== args.photoIndex);
+    await ctx.db.patch(profile._id, { photos: newPhotos });
+    return null;
+  },
+});
+
 export const getMyProfile = query({
   args: {},
   returns: v.union(talentProfileReturn, v.null()),
@@ -252,6 +308,13 @@ export const listApprovedProfiles = query({
         .collect();
     }
 
+    // Sort by displayOrder (lower first) for approved profiles
+    profiles.sort((a: any, b: any) => {
+      const orderA = a.displayOrder ?? 999999;
+      const orderB = b.displayOrder ?? 999999;
+      return orderA - orderB;
+    });
+
     const results = [];
     for (const profile of profiles) {
       const photoUrls = await resolvePhotoUrls(ctx, profile.photos);
@@ -274,6 +337,7 @@ export const listPendingProfiles = query({
     const profiles = await ctx.db
       .query("talentProfiles")
       .withIndex("by_status", (q) => q.eq("status", "pending"))
+      .order("desc")
       .collect();
 
     const results = [];
@@ -300,10 +364,19 @@ export const listAllProfiles = query({
       profiles = await ctx.db
         .query("talentProfiles")
         .withIndex("by_status", (q) => q.eq("status", args.status!))
+        .order("desc")
         .collect();
     } else {
-      profiles = await ctx.db.query("talentProfiles").collect();
+      profiles = await ctx.db.query("talentProfiles").order("desc").collect();
     }
+
+    // Sort by displayOrder (lower first), then by creation time (newest first)
+    profiles.sort((a: any, b: any) => {
+      const orderA = a.displayOrder ?? 999999;
+      const orderB = b.displayOrder ?? 999999;
+      if (orderA !== orderB) return orderA - orderB;
+      return b._creationTime - a._creationTime;
+    });
 
     const results = [];
     for (const profile of profiles) {
@@ -315,7 +388,10 @@ export const listAllProfiles = query({
 });
 
 export const approveProfile = mutation({
-  args: { profileId: v.id("talentProfiles") },
+  args: {
+    profileId: v.id("talentProfiles"),
+    feedback: v.optional(v.string()),
+  },
   returns: v.null(),
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -328,23 +404,22 @@ export const approveProfile = mutation({
     const profile = await ctx.db.get(args.profileId);
     if (!profile) throw new Error("Profile not found");
 
-    await ctx.db.patch(args.profileId, { status: "approved" });
+    const updates: any = { status: "approved" };
+    if (args.feedback) updates.adminNotes = args.feedback;
+    await ctx.db.patch(args.profileId, updates);
 
-    // Send approval email
+    // Send approval email to talent
     const talentUser = await ctx.db.get(profile.userId);
-    if (talentUser?.email) {
-      const talentName = profile.firstName && profile.lastName
-        ? `${profile.firstName} ${profile.lastName}`
-        : "Talent";
-      await ctx.scheduler.runAfter(
-        0,
-        internal.email.sendProfileApprovedEmail,
-        {
-          email: talentUser.email,
-          talentName,
-        }
-      );
+    const talentEmail = profile.email || talentUser?.email;
+    if (talentEmail) {
+      await ctx.scheduler.runAfter(0, internal.email.sendTalentApprovalEmail, {
+        talentEmail,
+        firstName: profile.firstName ?? "Talent",
+        lastName: profile.lastName ?? "",
+        feedback: args.feedback,
+      });
     }
+
     return null;
   },
 });
@@ -371,22 +446,87 @@ export const declineProfile = mutation({
       declineReason: args.reason,
     });
 
-    // Send decline email
+    // Send decline email to talent
     const talentUser = await ctx.db.get(profile.userId);
-    if (talentUser?.email) {
-      const talentName = profile.firstName && profile.lastName
-        ? `${profile.firstName} ${profile.lastName}`
-        : "Talent";
-      await ctx.scheduler.runAfter(
-        0,
-        internal.email.sendProfileDeclinedEmail,
-        {
-          email: talentUser.email,
-          talentName,
-          reason: args.reason,
-        }
-      );
+    const talentEmail = profile.email || talentUser?.email;
+    if (talentEmail) {
+      await ctx.scheduler.runAfter(0, internal.email.sendTalentDeclineEmail, {
+        talentEmail,
+        firstName: profile.firstName ?? "Talent",
+        lastName: profile.lastName ?? "",
+        reason: args.reason,
+      });
     }
+
+    return null;
+  },
+});
+
+export const reapproveProfile = mutation({
+  args: {
+    profileId: v.id("talentProfiles"),
+    feedback: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const user = await ctx.db.get(userId);
+    if (!user || user.role !== "admin")
+      throw new Error("Admin only");
+
+    const updates: any = { status: "approved", declineReason: undefined };
+    if (args.feedback) updates.adminNotes = args.feedback;
+    await ctx.db.patch(args.profileId, updates);
+    return null;
+  },
+});
+
+export const archiveProfile = mutation({
+  args: {
+    profileId: v.id("talentProfiles"),
+    reason: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const user = await ctx.db.get(userId);
+    if (!user || user.role !== "admin")
+      throw new Error("Admin only");
+
+    const profile = await ctx.db.get(args.profileId);
+    if (!profile) throw new Error("Profile not found");
+
+    const updates: any = { status: "archived" };
+    if (args.reason) updates.adminNotes = args.reason;
+    await ctx.db.patch(args.profileId, updates);
+    return null;
+  },
+});
+
+export const unarchiveProfile = mutation({
+  args: {
+    profileId: v.id("talentProfiles"),
+    feedback: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const user = await ctx.db.get(userId);
+    if (!user || user.role !== "admin")
+      throw new Error("Admin only");
+
+    const profile = await ctx.db.get(args.profileId);
+    if (!profile) throw new Error("Profile not found");
+
+    const updates: any = { status: "approved" };
+    if (args.feedback) updates.adminNotes = args.feedback;
+    await ctx.db.patch(args.profileId, updates);
     return null;
   },
 });
@@ -425,6 +565,7 @@ export const adminUpdateProfile = mutation({
     nokPhone: v.optional(v.string()),
     nokEmail: v.optional(v.string()),
     nokAddress: v.optional(v.string()),
+    displayOrder: v.optional(v.number()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -521,6 +662,108 @@ export const adminRemovePhoto = mutation({
     const newPhotos = profile.photos.filter((_: any, i: number) => i !== args.photoIndex);
     await ctx.db.patch(args.profileId, { photos: newPhotos });
     return null;
+  },
+});
+
+export const adminReorderPhotos = mutation({
+  args: {
+    profileId: v.id("talentProfiles"),
+    fromIndex: v.number(),
+    toIndex: v.number(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const user = await ctx.db.get(userId);
+    if (!user || user.role !== "admin") throw new Error("Admin only");
+
+    const profile = await ctx.db.get(args.profileId);
+    if (!profile) throw new Error("Profile not found");
+
+    const photos = [...profile.photos];
+    if (args.fromIndex < 0 || args.fromIndex >= photos.length) throw new Error("Invalid from index");
+    if (args.toIndex < 0 || args.toIndex >= photos.length) throw new Error("Invalid to index");
+
+    const [moved] = photos.splice(args.fromIndex, 1);
+    photos.splice(args.toIndex, 0, moved);
+
+    await ctx.db.patch(args.profileId, { photos });
+    return null;
+  },
+});
+
+// ====== ADMIN DISPLAY ORDER ======
+
+export const updateDisplayOrder = mutation({
+  args: {
+    profileId: v.id("talentProfiles"),
+    displayOrder: v.number(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+    const user = await ctx.db.get(userId);
+    if (!user || user.role !== "admin") throw new Error("Admin only");
+    await ctx.db.patch(args.profileId, { displayOrder: args.displayOrder });
+    return null;
+  },
+});
+
+export const swapDisplayOrder = mutation({
+  args: {
+    profileIdA: v.id("talentProfiles"),
+    profileIdB: v.id("talentProfiles"),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+    const user = await ctx.db.get(userId);
+    if (!user || user.role !== "admin") throw new Error("Admin only");
+
+    const profileA = await ctx.db.get(args.profileIdA);
+    const profileB = await ctx.db.get(args.profileIdB);
+    if (!profileA || !profileB) throw new Error("Profile not found");
+
+    const orderA = profileA.displayOrder ?? 999999;
+    const orderB = profileB.displayOrder ?? 999999;
+
+    await ctx.db.patch(args.profileIdA, { displayOrder: orderB });
+    await ctx.db.patch(args.profileIdB, { displayOrder: orderA });
+    return null;
+  },
+});
+
+export const autoAssignDisplayOrder = mutation({
+  args: {},
+  returns: v.string(),
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+    const user = await ctx.db.get(userId);
+    if (!user || user.role !== "admin") throw new Error("Admin only");
+
+    const approved = await ctx.db
+      .query("talentProfiles")
+      .withIndex("by_status", (q: any) => q.eq("status", "approved"))
+      .collect();
+
+    // Assign order based on current position, preserving existing order
+    const sorted = [...approved].sort((a: any, b: any) => {
+      const orderA = a.displayOrder ?? 999999;
+      const orderB = b.displayOrder ?? 999999;
+      if (orderA !== orderB) return orderA - orderB;
+      return a._creationTime - b._creationTime;
+    });
+
+    for (let i = 0; i < sorted.length; i++) {
+      await ctx.db.patch(sorted[i]._id, { displayOrder: (i + 1) * 10 });
+    }
+
+    return `Assigned display order to ${sorted.length} profiles`;
   },
 });
 

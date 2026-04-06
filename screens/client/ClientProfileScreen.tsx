@@ -9,6 +9,7 @@ import { useAuthActions } from '@convex-dev/auth/react';
 import { api } from '../../convex/_generated/api';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../lib/theme';
+import { useAdminView } from '../AuthenticatedApp';
 
 function InputField({
   label, value, onChangeText, placeholder, keyboardType, autoCapitalize, multiline,
@@ -38,6 +39,7 @@ export default function ClientProfileScreen() {
   const clientProfile = useQuery(api.clients.getMyClientProfile);
   const upsertProfile = useMutation(api.clients.upsertClientProfile);
   const { signOut } = useAuthActions();
+  const { onSwitch } = useAdminView();
 
   // Company
   const [companyName, setCompanyName] = useState('');
@@ -210,6 +212,12 @@ export default function ClientProfileScreen() {
               <Text style={styles.signOutText}>Sign Out</Text>
             </TouchableOpacity>
 
+            {/* Admin Access */}
+            <TouchableOpacity style={styles.adminAccessBtn} onPress={() => onSwitch('admin')}>
+              <Ionicons name="shield-checkmark" size={20} color={theme.colors.primary} />
+              <Text style={styles.adminAccessText}>Admin Access</Text>
+            </TouchableOpacity>
+
             <View style={{ height: 40 }} />
           </ScrollView>
         </KeyboardAvoidingView>
@@ -256,4 +264,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(239,68,68,0.1)', borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)',
   },
   signOutText: { fontSize: 16, fontWeight: '600', color: theme.colors.error },
+  adminAccessBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    paddingVertical: 16, borderRadius: 14,
+    backgroundColor: 'rgba(201,168,76,0.1)', borderWidth: 1, borderColor: 'rgba(201,168,76,0.2)',
+    marginTop: 12,
+  },
+  adminAccessText: { fontSize: 16, fontWeight: '600', color: theme.colors.primary },
 });

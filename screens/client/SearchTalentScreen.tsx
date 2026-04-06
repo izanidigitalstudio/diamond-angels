@@ -267,7 +267,7 @@ export default function SearchTalentScreen() {
                   {isSel && <Ionicons name="checkmark" size={14} color={C.black} />}
                 </TouchableOpacity>
                 <View style={{ padding: 8 }}>
-                  <Text style={styles.cardName} numberOfLines={1}>{item.firstName} {item.lastName}</Text>
+                  <Text style={styles.cardName} numberOfLines={1}>{item.firstName}</Text>
                   <Text style={styles.cardCity}>{item.city} · {item.heightCm}cm</Text>
                   <Text style={styles.cardCategory}>{item.categories[0]}</Text>
                 </View>
@@ -457,7 +457,7 @@ export default function SearchTalentScreen() {
               <View style={styles.modalContent}>
                 <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                   <PhotoSlider photos={showDetail.photos || showDetail.photoUrls || []} />
-                  <Text style={[styles.title, { marginTop: 16 }]}>{showDetail.firstName} {showDetail.lastName}</Text>
+                  <Text style={[styles.title, { marginTop: 16 }]}>{showDetail.firstName}</Text>
                   <Text style={{ color: C.sub, fontSize: 12, marginTop: 2 }}>
                     {showDetail.city}, {showDetail.area} · {showDetail.race} · {showDetail.bodyType} · {showDetail.heightCm}cm
                   </Text>
