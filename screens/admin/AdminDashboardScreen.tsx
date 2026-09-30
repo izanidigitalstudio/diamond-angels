@@ -836,7 +836,7 @@ function BookingCard({ booking, onUpdateStatus }: { booking: any; onUpdateStatus
       {booking.status === 'pending' && (
         <View style={[st.contactRow, { gap: 10 }]}>
           <TouchableOpacity
-            style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8, borderRadius: 10, backgroundColor: '#10B981' + '10' }}
+            style={{ flex: 1, height: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 10, backgroundColor: '#10B981' + '10' }}
             onPress={() => onUpdateStatus('confirmed')}
             activeOpacity={0.7}
           >
@@ -844,7 +844,7 @@ function BookingCard({ booking, onUpdateStatus }: { booking: any; onUpdateStatus
             <Text style={{ fontSize: 12, fontWeight: '600', color: '#10B981' }}>Confirm</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 8, borderRadius: 10, backgroundColor: '#EF4444' + '10' }}
+            style={{ flex: 1, height: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 10, backgroundColor: '#EF4444' + '10' }}
             onPress={() => onUpdateStatus('declined')}
             activeOpacity={0.7}
           >

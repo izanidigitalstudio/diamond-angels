@@ -382,9 +382,9 @@ const st = StyleSheet.create({
   title: { fontSize: 28, fontWeight: '800', color: theme.colors.primary, paddingHorizontal: 20, marginTop: 16, marginBottom: 12 },
   filterRow: { flexDirection: 'row', gap: 8, paddingHorizontal: 20, marginBottom: 14, flexGrow: 0 },
   filterChip: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    paddingVertical: 10, paddingHorizontal: 12, borderRadius: 12, backgroundColor: theme.colors.card,
-    borderWidth: 1, borderColor: theme.colors.border,
+  flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+  height: 36, paddingHorizontal: 12, borderRadius: 12, backgroundColor: theme.colors.card,
+  borderWidth: 1, borderColor: theme.colors.border,
   },
   filterChipActive: { backgroundColor: 'rgba(201,168,76,0.1)', borderColor: theme.colors.primary },
   filterDot: { width: 6, height: 6, borderRadius: 3 },
