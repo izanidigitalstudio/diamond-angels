@@ -71,12 +71,12 @@ function getTabOptions(isDesktop: boolean) {
   };
 }
 
-function AdminNavigator({ isDesktop }: { isDesktop: boolean }) {
+function AdminNavigator({ isDesktop, restricted }: { isDesktop: boolean; restricted: boolean }) {
   return (
     <AdminTab.Navigator screenOptions={getTabOptions(isDesktop)}>
       <AdminTab.Screen name="Members" component={AdminDashboardScreen} options={{ tabBarIcon: ({ color, size }: any) => <Ionicons name="people" size={size} color={color} /> }} />
-      <AdminTab.Screen name="Talent" component={TalentManagementScreen} options={{ tabBarIcon: ({ color, size }: any) => <Ionicons name="person-add" size={size} color={color} /> }} />
-      <AdminTab.Screen name="Bookings" component={BookingRequestsScreen} options={{ tabBarIcon: ({ color, size }: any) => <Ionicons name="calendar" size={size} color={color} /> }} />
+      {!restricted && <AdminTab.Screen name="Talent" component={TalentManagementScreen} options={{ tabBarIcon: ({ color, size }: any) => <Ionicons name="person-add" size={size} color={color} /> }} />}
+      {!restricted && <AdminTab.Screen name="Bookings" component={BookingRequestsScreen} options={{ tabBarIcon: ({ color, size }: any) => <Ionicons name="calendar" size={size} color={color} /> }} />}
       <AdminTab.Screen name="Gigs" component={GigManagementScreen} options={{ tabBarIcon: ({ color, size }: any) => <Ionicons name="megaphone" size={size} color={color} /> }} />
       <AdminTab.Screen name="Notices" component={NoticesManagementScreen} options={{ tabBarIcon: ({ color, size }: any) => <Ionicons name="newspaper" size={size} color={color} /> }} />
     </AdminTab.Navigator>
@@ -126,12 +126,13 @@ export function useAdminView() {
 
 /* ========== PIN ENTRY MODAL ========== */
 const ADMIN_PIN = '2025';
+const RESTRICTED_ADMIN_PIN = '2468';
 const SUPER_PIN = '1977';
 
 function PinEntryModal({ visible, onClose, onUnlock }: {
   visible: boolean;
   onClose: () => void;
-  onUnlock: (isSuper: boolean) => void;
+  onUnlock: (access: 'full' | 'restricted' | 'super') => void;
 }) {
   const [pinDisplay, setPinDisplay] = useState('');
   const [error, setError] = useState(false);
@@ -169,11 +170,15 @@ function PinEntryModal({ visible, onClose, onUnlock }: {
         if (next === SUPER_PIN) {
           pinRef.current = '';
           setPinDisplay('');
-          onUnlock(true);
+          onUnlock('super');
         } else if (next === ADMIN_PIN) {
           pinRef.current = '';
           setPinDisplay('');
-          onUnlock(false);
+          onUnlock('full');
+        } else if (next === RESTRICTED_ADMIN_PIN) {
+          pinRef.current = '';
+          setPinDisplay('');
+          onUnlock('restricted');
         } else {
           setError(true);
           shake();
@@ -398,6 +403,7 @@ export default function AuthenticatedApp() {
   // Admin PIN unlock state - PIN is ALWAYS required for admin access
   const [adminUnlocked, setAdminUnlocked] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [isRestrictedAdmin, setIsRestrictedAdmin] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
   const [showSwitcher, setShowSwitcher] = useState(false);
 
@@ -461,9 +467,10 @@ export default function AuthenticatedApp() {
     return targetRole;
   })();
 
-  const handleUnlock = (isSuper: boolean) => {
+  const handleUnlock = (access: 'full' | 'restricted' | 'super') => {
     setAdminUnlocked(true);
-    setIsSuperAdmin(isSuper);
+    setIsSuperAdmin(access === 'super');
+    setIsRestrictedAdmin(access === 'restricted');
     setShowPinModal(false);
     setViewAsRole('admin');
   };
@@ -471,6 +478,7 @@ export default function AuthenticatedApp() {
   const handleLock = () => {
     setAdminUnlocked(false);
     setIsSuperAdmin(false);
+    setIsRestrictedAdmin(false);
     setShowSwitcher(false);
     setViewAsRole(user.role === 'admin' ? 'client' : user.role);
   };
@@ -486,7 +494,7 @@ export default function AuthenticatedApp() {
   return (
     <AdminViewContext.Provider value={{ viewAs: effectiveRole, onSwitch: handleViewSwitch, isSuper: isSuperAdmin }}>
       <View style={{ flex: 1 }}>
-        {effectiveRole === 'admin' && <AdminNavigator isDesktop={isDesktop} />}
+        {effectiveRole === 'admin' && <AdminNavigator isDesktop={isDesktop} restricted={isRestrictedAdmin} />}
         {effectiveRole === 'client' && <ClientNavigator isDesktop={isDesktop} />}
         {effectiveRole === 'talent' && <TalentNavigator isDesktop={isDesktop} />}
 
