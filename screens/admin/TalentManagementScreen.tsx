@@ -9,7 +9,6 @@ import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../lib/theme';
-import { DEMO_TALENT } from '../../lib/demoTalent';
 import ProfileReviewModal from '../../components/ProfileReviewModal';
 
 const IMG_BASE = 'https://api.a0.dev/assets/image';
@@ -108,15 +107,6 @@ export default function TalentManagementScreen() {
         const photos = existingPhotos.length > 0 ? existingPhotos : generatePhotosForProfile(p);
         return { ...p, photoUrls: photos };
       });
-    }
-    if (profiles === undefined && statusFilter === 'approved') {
-      return DEMO_TALENT.map((t: any) => ({
-        ...t,
-        _id: t.id,
-        photoUrls: t.photos || [],
-        bio: t.background || '',
-        phone: '07X XXX XXXX',
-      }));
     }
     return [];
   }, [profiles, statusFilter]);
