@@ -10,7 +10,6 @@ import { useAuthActions } from '@convex-dev/auth/react';
 import { api } from '../../convex/_generated/api';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../lib/theme';
-import { DEMO_TALENT } from '../../lib/demoTalent';
 import { DEMO_MEMBERS } from '../../lib/demoMembers';
 import ProfileReviewModal from '../../components/ProfileReviewModal';
 import { AdminViewSwitcherPill } from '../AuthenticatedApp';
@@ -1153,13 +1152,7 @@ export default function AdminDashboardScreen() {
         return { ...p, photoUrls: existing.length > 0 ? existing : [generatePhoto(p)] };
       });
     }
-    return DEMO_TALENT.map((t: any) => ({
-      ...t,
-      _id: t.id,
-      photoUrls: t.photos || [],
-      phone: '+27XX XXX XXXX',
-      email: `${t.firstName.toLowerCase()}.${t.lastName.toLowerCase()}@email.co.za`,
-    }));
+    return [];
   }, [approvedTalent]);
 
   const displayData = useMemo(() => {

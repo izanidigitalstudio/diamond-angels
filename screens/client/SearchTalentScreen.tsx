@@ -9,7 +9,6 @@ import { api } from '../../convex/_generated/api';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../../lib/theme';
 import { SA_CITIES, RACE_OPTIONS, BODY_TYPES, CATEGORIES, EVENT_TYPES, HEIGHT_MIN, HEIGHT_MAX } from '../../lib/constants';
-import { DEMO_TALENT } from '../../lib/demoTalent';
 
 const CARD_GAP = 10;
 
@@ -108,17 +107,14 @@ export default function SearchTalentScreen() {
   const dbProfiles = useQuery(api.talent.listApprovedProfiles, filterCity ? { city: filterCity } : {});
   const createBooking = useMutation(api.bookings.createBookingRequest);
 
-  // Use DB profiles if available, fall back to demo data
-  const allProfiles = useMemo(() => {
-    if (dbProfiles && dbProfiles.length > 0) {
-      return dbProfiles.map((p: any) => {
+    // The public talent directory is always sourced from live approved profiles.
+    const allProfiles = useMemo(() => {
+      return (dbProfiles || []).map((p: any) => {
         const existingPhotos = [...(p.photos || []), ...(p.photoUrls || [])].filter(Boolean);
         const photos = existingPhotos.length > 0 ? existingPhotos : generatePhotosForProfile(p);
         return { ...p, id: p._id, photos };
       });
-    }
-    return DEMO_TALENT;
-  }, [dbProfiles]);
+    }, [dbProfiles]);
 
   const cities = useMemo(() => [...new Set(allProfiles.map((t: any) => t.city))].sort(), [allProfiles]);
 
