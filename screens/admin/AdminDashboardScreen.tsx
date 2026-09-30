@@ -1116,7 +1116,7 @@ export default function AdminDashboardScreen() {
   const { signOut } = useAuthActions();
 
   // Queries
-  const approvedTalent = useQuery(api.talent.listAllProfiles, { status: 'approved' });
+  const approvedTalent = useQuery(api.talent.listApprovedProfiles, {});
   const allMembers = useQuery(api.members.listAllMembers);
   const dbNotices = useQuery(api.notices.listNotices);
   const dbBookings = useQuery(api.bookings.listBookingRequests, {});
